@@ -36,13 +36,13 @@ import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { useItems } from "@/db/hooks";
 import { saveItem } from "@/db/records";
-import { COMMON_UNITS, DOC_TYPE_META } from "@/lib/documents";
+import { COMMON_UNITS } from "@/lib/documents";
 import { currencyPrecision, currencySymbol } from "@/lib/currency";
 import { formatMoney } from "@/lib/format";
 import { toDec } from "@/lib/money";
-import { sanitizeHsnSac } from "@/lib/gst/tax";
+import { invoiceHasTax, sanitizeHsnSac } from "@/lib/gst/tax";
 import { lineFromCatalog, newLineItem } from "@/lib/invoice-factory";
-import type { CatalogItem, LineItem } from "@/lib/schema";
+import type { CatalogItem, ItemType, LineItem } from "@/lib/schema";
 import { fieldId } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { useEditor } from "@/stores/editor-store";
@@ -59,8 +59,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
+import { Select } from "@/components/ui/select";
 import { GstRateSelect } from "@/components/forms/pickers";
 import { useEditorContext, useFieldIssue } from "./editor-context";
+import { UQC_OPTIONS, withAutoCodes, withFreshCodes } from "./line-codes";
 import { EditorSection, useRevealOn } from "./section";
 
 export function ItemsSection() {
@@ -155,7 +158,7 @@ export function ItemsSection() {
                 .filter(Boolean)
                 .join(" · ")
             }
-            onSelect={(item) => addLine(lineFromCatalog(item, settings))}
+            onSelect={(item) => addLine(withFreshCodes(lineFromCatalog(item, settings)))}
             searchPlaceholder="Search your items…"
             trigger={
               <Button variant="ghost" size="sm">
@@ -224,8 +227,13 @@ const LineRow = memo(function LineRow({
   const { settings } = useEditorContext();
   const line = useEditor((s) => s.invoice!.lines.find((l) => l.id === id));
   const amount = useEditor((s) => s.totals?.lines.find((l) => l.id === id)?.amount ?? "0");
-  const { currency, docType } = useEditor(
-    useShallow((s) => ({ currency: s.invoice!.currency, docType: s.invoice!.docType })),
+  const { currency, docType, hasTax } = useEditor(
+    useShallow((s) => ({
+      currency: s.invoice!.currency,
+      docType: s.invoice!.docType,
+      // Exports and SEZ supplies with payment carry IGST, whatever the document type.
+      hasTax: invoiceHasTax(s.invoice!),
+    })),
   );
   const { patchLine, removeLine, addLine, duplicateLine, moveLineBy } = useEditor(
     useShallow((s) => ({
@@ -243,19 +251,27 @@ const LineRow = memo(function LineRow({
   const qtyIssue = useFieldIssue(fieldId.line(id, "quantity"));
   const priceIssue = useFieldIssue(fieldId.line(id, "price"));
   const discIssue = useFieldIssue(fieldId.line(id, "discount"));
-  useRevealOn([fieldId.line(id, "discount")], () => setShowMore(true));
+  const rateIssue = useFieldIssue(fieldId.line(id, "rate"));
+  const hsnIssue = useFieldIssue(fieldId.line(id, "hsn"));
+  useRevealOn([fieldId.line(id, "discount"), fieldId.line(id, "hsn")], () => setShowMore(true));
   if (!line) return null;
 
-  const hasTax = DOC_TYPE_META[docType].hasTax;
+  // Goods/Services and UQC matter for GST returns; invoices without GST don't need them.
+  const showGstCodes = docType !== "invoice";
   const dp = currencyPrecision(currency);
   const symbol = currencySymbol(currency);
-  const set = (partial: Partial<LineItem>) => patchLine(id, partial);
-  const rowError = nameIssue.error || qtyIssue.error || priceIssue.error || discIssue.error;
+  // HSN and unit changes keep Goods/Services and the UQC in step (unless set by hand).
+  const set = (partial: Partial<LineItem>) =>
+    patchLine(id, withAutoCodes(line, { ...line, ...partial }));
+  const rowError =
+    nameIssue.error || qtyIssue.error || priceIssue.error || discIssue.error || rateIssue.error;
   // Always reveal hidden fields that have a problem.
-  const moreOpen = showMore || Boolean(discIssue.error);
+  const moreOpen = showMore || Boolean(discIssue.error || hsnIssue.warning);
   const extras = [
     line.hsnSac && `HSN ${line.hsnSac}`,
+    showGstCodes && line.itemType === "services" && "Services",
     line.unit && line.unit,
+    showGstCodes && line.uqc && line.uqc !== line.unit.toUpperCase() && `UQC ${line.uqc}`,
     line.discount.value &&
       (line.discount.kind === "percent"
         ? `${line.discount.value}% off`
@@ -264,8 +280,8 @@ const LineRow = memo(function LineRow({
   ].filter(Boolean) as string[];
 
   const pick = (item: CatalogItem) => {
-    const fromCatalog = lineFromCatalog(item, settings);
-    set({ ...fromCatalog, id, quantity: line.quantity || "1" });
+    const fromCatalog = withFreshCodes(lineFromCatalog(item, settings));
+    patchLine(id, { ...fromCatalog, id, quantity: line.quantity || "1" });
   };
 
   const remove = () => {
@@ -397,7 +413,7 @@ const LineRow = memo(function LineRow({
                 ·{" "}
                 {extras.length > 0
                   ? extras.join(" · ")
-                  : `description, unit, discount${hasTax ? ", HSN/SAC" : ""}`}
+                  : `description, unit, discount${hasTax ? ", HSN/SAC" : ""}${showGstCodes ? ", goods/services" : ""}`}
               </span>
             )}
           </button>
@@ -491,7 +507,13 @@ const LineRow = memo(function LineRow({
                   label={`Item ${index + 1} discount`}
                 />
               </Field>
-              <Field label="HSN/SAC" optional className="col-span-2 sm:col-span-1">
+              <Field
+                label="HSN/SAC"
+                optional
+                className="col-span-2 sm:col-span-1"
+                id={fieldId.line(id, "hsn")}
+                warning={hsnIssue.warning}
+              >
                 <Input
                   value={line.hsnSac}
                   onChange={(e) => set({ hsnSac: sanitizeHsnSac(e.target.value) })}
@@ -502,8 +524,45 @@ const LineRow = memo(function LineRow({
                 />
               </Field>
             </div>
+            {showGstCodes && (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Type" hint="SAC codes starting 99 are services.">
+                  <Segmented<ItemType>
+                    fullWidth
+                    value={line.itemType}
+                    onValueChange={(itemType) => patchLine(id, { itemType })}
+                    options={[
+                      { value: "goods", label: "Goods" },
+                      { value: "services", label: "Services" },
+                    ]}
+                    aria-label={`Item ${index + 1}: goods or services`}
+                  />
+                </Field>
+                <Field label="Unit code (UQC)" hint="Used in GST returns.">
+                  <Select<string>
+                    value={line.uqc}
+                    onValueChange={(uqc) => patchLine(id, { uqc })}
+                    options={UQC_OPTIONS}
+                    renderValue={(v) => v}
+                    placeholder="Auto from unit"
+                    aria-label={`Item ${index + 1} unit quantity code`}
+                  />
+                </Field>
+              </div>
+            )}
           </div>
         </Collapse>
+        {(rateIssue.error || rateIssue.warning) && (
+          <p
+            className={cn(
+              "text-xs leading-4",
+              rateIssue.error ? "text-danger-foreground" : "text-warning-foreground",
+            )}
+            role={rateIssue.error ? "alert" : "status"}
+          >
+            {rateIssue.error ?? rateIssue.warning}
+          </p>
+        )}
       </div>
     </div>
   );

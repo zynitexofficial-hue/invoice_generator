@@ -375,6 +375,27 @@
 .doc-stamp[data-status="PARTIALLY PAID"] {
   color: #d97706;
 }
+.doc-stamp[data-status="CANCELLED"] {
+  color: #dc2626;
+}
+
+/* Cancelled documents: one big diagonal stamp centred on every page. */
+.doc-cancelled {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.doc-cancelled .doc-stamp {
+  position: relative;
+  font-size: 4.2em;
+  border-width: 0.09em;
+  transform: rotate(-28deg);
+  opacity: 0.5;
+}
 
 /* ---------------- Print ---------------- */
 

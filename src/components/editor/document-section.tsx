@@ -1,10 +1,12 @@
 "use client";
 
 import { FileText, RefreshCw } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { DOC_TYPE_META, PROFORMA_TITLES } from "@/lib/documents";
 import { addDaysISO, formatDate } from "@/lib/dates";
+import { isGstNumberedDocType, patternUsesRandom } from "@/lib/numbering";
 import {
   CREATABLE_DOC_TYPES,
   isNoteDocType,
@@ -48,6 +50,11 @@ export function DocumentSection() {
   const numberIssue = useFieldIssue(fieldId.number);
   const dateIssue = useFieldIssue(fieldId.invoiceDate);
   const dueIssue = useFieldIssue(fieldId.dueDate);
+  const originalIssue = useFieldIssue(fieldId.noteOriginal);
+  const reasonIssue = useFieldIssue(fieldId.noteReason);
+  // GST series must be consecutive (Rule 46); a {RAND} pattern isn't.
+  const randomSeries =
+    isGstNumberedDocType(d.docType) && patternUsesRandom(settings.numbering[d.docType].pattern);
   const meta = DOC_TYPE_META[d.docType];
   // Currency, reference and PO are rarely changed; they open automatically when in use.
   const [showMore, setShowMore] = useState(false);
@@ -65,7 +72,13 @@ export function DocumentSection() {
     .filter(Boolean)
     .join(" · ");
   const hasIssue = Boolean(
-    numberIssue.error || numberIssue.warning || dateIssue.error || dueIssue.error,
+    numberIssue.error ||
+    numberIssue.warning ||
+    dateIssue.error ||
+    dateIssue.warning ||
+    dueIssue.error ||
+    originalIssue.error ||
+    reasonIssue.error,
   );
 
   const duePresets = d.invoiceDate
@@ -84,7 +97,13 @@ export function DocumentSection() {
       collapsible
       defaultOpen={d.docType === "export" || isNoteDocType(d.docType)}
       hasIssue={hasIssue}
-      fields={[fieldId.number, fieldId.invoiceDate, fieldId.dueDate]}
+      fields={[
+        fieldId.number,
+        fieldId.invoiceDate,
+        fieldId.dueDate,
+        fieldId.noteOriginal,
+        fieldId.noteReason,
+      ]}
       summary={summary}
     >
       <div className="grid gap-2.5 sm:gap-3">
@@ -111,6 +130,19 @@ export function DocumentSection() {
             id={fieldId.number}
             error={numberIssue.error}
             warning={numberIssue.warning}
+            hint={
+              randomSeries ? (
+                <>
+                  GST law needs consecutive numbers.{" "}
+                  <Link
+                    href="/settings?section=numbering"
+                    className="font-medium text-primary underline-offset-2 hover:underline"
+                  >
+                    Switch to INV/26-27/001 style
+                  </Link>
+                </>
+              ) : undefined
+            }
           >
             <Input
               value={d.number}
@@ -136,14 +168,23 @@ export function DocumentSection() {
 
         {isNoteDocType(d.docType) && (
           <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
-            <p className="text-sm text-muted-foreground sm:col-span-2">
-              Against invoice{" "}
-              <span className="font-medium text-foreground tabular-nums">
-                {note.originalInvoiceNumber || "—"}
-              </span>
-              {note.originalInvoiceDate && <> dated {formatDate(note.originalInvoiceDate, fmt)}</>}
-            </p>
-            <Field label="Reason">
+            <div id={fieldId.noteOriginal} className="sm:col-span-2">
+              <p className="text-sm text-muted-foreground">
+                Against invoice{" "}
+                <span className="font-medium text-foreground tabular-nums">
+                  {note.originalInvoiceNumber || "—"}
+                </span>
+                {note.originalInvoiceDate && (
+                  <> dated {formatDate(note.originalInvoiceDate, fmt)}</>
+                )}
+              </p>
+              {originalIssue.error && (
+                <p className="mt-1 text-xs text-danger-foreground" role="alert">
+                  {originalIssue.error}
+                </p>
+              )}
+            </div>
+            <Field label="Reason" id={fieldId.noteReason} error={reasonIssue.error}>
               <Select<NoteReason>
                 value={note.reason}
                 onValueChange={(reason) => patch({ note: { ...note, reason } })}
@@ -174,7 +215,12 @@ export function DocumentSection() {
         )}
 
         <div className="grid gap-2.5 min-[360px]:grid-cols-2 sm:gap-3">
-          <Field label="Date" id={fieldId.invoiceDate} error={dateIssue.error}>
+          <Field
+            label="Date"
+            id={fieldId.invoiceDate}
+            error={dateIssue.error}
+            warning={dateIssue.warning}
+          >
             <DatePicker value={d.invoiceDate} onChange={setInvoiceDate} dateFormat={fmt} />
           </Field>
           <Field label={meta.dueLabel} id={fieldId.dueDate} error={dueIssue.error} optional>

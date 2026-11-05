@@ -9,9 +9,12 @@ import {
   counterKey,
   financialYear,
   formatDocumentNumber,
+  gstSeriesUsingRandom,
+  isGstNumberedDocType,
   patternUsesSeq,
   unknownTokens,
 } from "./numbering";
+import { DEFAULT_SETTINGS, DOC_TYPES, settingsSchema } from "./schema";
 
 const oct22 = new Date(2026, 9, 22, 14, 30, 52);
 
@@ -98,5 +101,36 @@ describe("business code and random tokens", () => {
     expect(randomDigits(4)).toMatch(/^\d{4}$/);
     expect(formatDocumentNumber("{RAND:6}", { prefix: "", date: oct22 })).toMatch(/^\d{6}$/);
     expect(patternUsesRandom(RANDOM_NUMBER_PATTERN)).toBe(true);
+  });
+});
+
+describe("default prefixes", () => {
+  it("gives every series its own prefix so numbers never clash", () => {
+    expect(DEFAULT_SETTINGS.numbering.tax_invoice.prefix).toBe("INV");
+    expect(DEFAULT_SETTINGS.numbering.invoice.prefix).toBe("BILL");
+    const prefixes = DOC_TYPES.map((t) => DEFAULT_SETTINGS.numbering[t].prefix);
+    expect(new Set(prefixes).size).toBe(prefixes.length);
+  });
+
+  it("keeps the prefix existing users already saved", () => {
+    const stored = settingsSchema.parse({
+      numbering: { invoice: { prefix: "INV", pattern: DEFAULT_NUMBER_PATTERN } },
+    });
+    expect(stored.numbering.invoice.prefix).toBe("INV");
+  });
+});
+
+describe("gstSeriesUsingRandom", () => {
+  it("lists GST series that still use random digits", () => {
+    const numbering = {
+      ...DEFAULT_SETTINGS.numbering,
+      tax_invoice: { prefix: "INV", pattern: RANDOM_NUMBER_PATTERN },
+      // Quotations aren't GST documents, so random numbers are fine there.
+      proforma: { prefix: "QTN", pattern: RANDOM_NUMBER_PATTERN },
+    };
+    expect(gstSeriesUsingRandom(numbering)).toEqual(["tax_invoice"]);
+    expect(gstSeriesUsingRandom(DEFAULT_SETTINGS.numbering)).toEqual([]);
+    expect(isGstNumberedDocType("credit_note")).toBe(true);
+    expect(isGstNumberedDocType("invoice")).toBe(false);
   });
 });

@@ -297,7 +297,9 @@ export type TotalsVariant = "plain" | "primary" | "boxed" | "accent";
 
 export function TotalsSection({ variant = "plain" }: { variant?: TotalsVariant }) {
   const { vm } = useDoc();
-  const left = vm.words || vm.declaration || vm.received;
+  const left = vm.words || vm.declaration || vm.statements.length > 0 || vm.received;
+  // CANCELLED is drawn across the page (see CancelledStamp), not next to the totals.
+  const inlineStamp = vm.stamp && vm.stamp !== "CANCELLED" ? vm.stamp : null;
   return (
     <div className="doc-section" style={{ display: "flex", gap: "2em", alignItems: "flex-start" }}>
       {left ? (
@@ -314,7 +316,7 @@ export function TotalsSection({ variant = "plain" }: { variant?: TotalsVariant }
               {vm.receivedNote ? ` ${vm.receivedNote}` : ""}.
             </div>
           )}
-          {vm.declaration && (
+          {(vm.declaration || vm.statements.length > 0) && (
             <div
               style={{
                 fontSize: "0.88em",
@@ -324,7 +326,12 @@ export function TotalsSection({ variant = "plain" }: { variant?: TotalsVariant }
                 borderRadius: "0 0.35em 0.35em 0",
               }}
             >
-              {vm.declaration}
+              {vm.statements.map((s) => (
+                <div key={s} style={{ fontWeight: 600 }}>
+                  {s}
+                </div>
+              ))}
+              {vm.declaration && <div>{vm.declaration}</div>}
             </div>
           )}
         </div>
@@ -333,7 +340,7 @@ export function TotalsSection({ variant = "plain" }: { variant?: TotalsVariant }
       )}
       <div
         className="doc-totals"
-        data-has-stamp={vm.stamp ? "true" : undefined}
+        data-has-stamp={inlineStamp ? "true" : undefined}
         style={
           variant === "boxed"
             ? {
@@ -344,10 +351,10 @@ export function TotalsSection({ variant = "plain" }: { variant?: TotalsVariant }
             : undefined
         }
       >
-        {vm.stamp && (
+        {inlineStamp && (
           <div style={{ textAlign: "right", marginBottom: "0.7em" }}>
-            <span className="doc-stamp doc-stamp-inline" data-status={vm.stamp}>
-              {vm.stamp}
+            <span className="doc-stamp doc-stamp-inline" data-status={inlineStamp}>
+              {inlineStamp}
             </span>
           </div>
         )}
@@ -784,6 +791,19 @@ export function Stamp({ style }: { style?: CSSProperties }) {
   return (
     <div className="doc-stamp" data-status={vm.stamp} style={style} aria-hidden>
       {vm.stamp}
+    </div>
+  );
+}
+
+/** Large diagonal "CANCELLED" across every page of a cancelled document. */
+export function CancelledStamp() {
+  const { vm } = useDoc();
+  if (!vm.cancelled) return null;
+  return (
+    <div className="doc-cancelled" aria-hidden>
+      <span className="doc-stamp" data-status="CANCELLED">
+        CANCELLED
+      </span>
     </div>
   );
 }

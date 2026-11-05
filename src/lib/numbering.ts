@@ -50,6 +50,28 @@ export function patternUsesRandom(pattern: string) {
 }
 
 /**
+ * Document types whose numbers fall under GST Rule 46 (consecutive serial,
+ * ≤16 characters, letters/digits/"-"/"/" only). Quotations and invoices
+ * without GST are not GST documents.
+ */
+export const GST_NUMBERED_DOC_TYPES = [
+  "tax_invoice",
+  "bill_of_supply",
+  "export",
+  "credit_note",
+  "debit_note",
+] as const satisfies readonly DocType[];
+
+export function isGstNumberedDocType(docType: DocType): boolean {
+  return (GST_NUMBERED_DOC_TYPES as readonly DocType[]).includes(docType);
+}
+
+/** GST document types whose numbering pattern uses {RAND} (not consecutive). */
+export function gstSeriesUsingRandom(numbering: Record<DocType, { pattern: string }>): DocType[] {
+  return GST_NUMBERED_DOC_TYPES.filter((t) => patternUsesRandom(numbering[t].pattern));
+}
+
+/**
  * Short business code for {BIZ}: the first 4 letters/digits of the business
  * name in capitals ("Zynitex" → "ZYNI"), or "INV" when no name is set yet.
  */

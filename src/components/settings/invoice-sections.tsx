@@ -1,7 +1,7 @@
 "use client";
 
-import { Plus, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { Hash, Plus, Sparkles, X } from "lucide-react";
+import { useState, useSyncExternalStore } from "react";
 import { DATE_FORMAT_LABELS } from "@/lib/dates";
 import { DOC_TYPE_META, PROFORMA_TITLES } from "@/lib/documents";
 import { formatMoney } from "@/lib/format";
@@ -10,10 +10,11 @@ import {
   DEFAULT_NUMBER_PATTERN,
   RANDOM_NUMBER_PATTERN,
   formatDocumentNumber,
+  gstSeriesUsingRandom,
   NUMBER_TOKENS,
   unknownTokens,
 } from "@/lib/numbering";
-import { sanitizeDecimalInput } from "@/lib/money";
+import { sanitizeDecimalInput, toDec } from "@/lib/money";
 import {
   CREATABLE_DOC_TYPES,
   DATE_FORMAT_IDS,
@@ -214,7 +215,16 @@ export function GstSection({ draft, update }: SectionProps) {
             label="I'm registered for GST"
             description="When off, new documents default to a simple Invoice without GST."
             checked={g.registered}
-            onCheckedChange={(registered) => set({ registered })}
+            onCheckedChange={(registered) =>
+              set({
+                registered,
+                registrationType: registered
+                  ? g.registrationType === "unregistered"
+                    ? "regular"
+                    : g.registrationType
+                  : "unregistered",
+              })
+            }
           />
           <Field
             label="How GST is shown"
@@ -255,6 +265,8 @@ export function GstSection({ draft, update }: SectionProps) {
           </div>
         </CardContent>
       </Card>
+
+      <FilingProfileCard draft={draft} update={update} />
 
       <Card>
         <CardHeader title="Rates" description="Rates offered on each line item." />
@@ -337,12 +349,200 @@ export function GstSection({ draft, update }: SectionProps) {
   );
 }
 
+/** ₹5 crore: above this, HSN needs 6 digits and e-invoicing is mandatory. */
+const FIVE_CRORE = "50000000";
+
+function FilingProfileCard({ draft, update }: SectionProps) {
+  const g = draft.gst;
+  const set = (partial: Partial<AppSettings["gst"]>) =>
+    update("gst", (prev) => ({ ...prev, ...partial }));
+  const aatoKnown = g.aato.trim() !== "" && toDec(g.aato).greaterThan(0);
+  const large = aatoKnown && toDec(g.aato).greaterThan(FIVE_CRORE);
+  const suggestedHsn: 4 | 6 = large ? 6 : 4;
+  const registered = g.registrationType !== "unregistered";
+
+  const setAato = (raw: string) => {
+    const aato = sanitizeDecimalInput(raw, 2);
+    const isLarge = aato.trim() !== "" && toDec(aato).greaterThan(FIVE_CRORE);
+    // HSN digits follow the turnover automatically; the user can still pick the other value.
+    set({ aato, hsnDigits: isLarge ? 6 : 4 });
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title="Filing profile"
+        description="Tells the app which GST rules apply to you. Ask your CA if unsure."
+      />
+      <CardContent className="grid gap-5">
+        <Field
+          label="Registration type"
+          hint={
+            g.registrationType === "composition"
+              ? "Composition dealers pay a flat rate and issue a Bill of Supply — they can't charge GST."
+              : g.registrationType === "unregistered"
+                ? "Not registered under GST: issue plain invoices without GST."
+                : "Regular GST registration: you charge GST and file GSTR-1 and GSTR-3B."
+          }
+        >
+          <Segmented<AppSettings["gst"]["registrationType"]>
+            fullWidth
+            value={g.registrationType}
+            onValueChange={(registrationType) =>
+              set({ registrationType, registered: registrationType !== "unregistered" })
+            }
+            options={[
+              { value: "regular", label: "Regular" },
+              { value: "composition", label: "Composition" },
+              { value: "unregistered", label: "Not registered" },
+            ]}
+          />
+        </Field>
+        {g.registrationType === "regular" && (
+          <Field
+            label="How often you file GSTR-1"
+            hint={
+              g.filingFrequency === "qrmp"
+                ? "Quarterly (QRMP): GSTR-1 and GSTR-3B every quarter, with optional monthly IFF for B2B invoices. Allowed up to ₹5 crore turnover."
+                : "Monthly: GSTR-1 by the 11th and GSTR-3B by the 20th of the next month."
+            }
+          >
+            <Segmented<AppSettings["gst"]["filingFrequency"]>
+              fullWidth
+              value={g.filingFrequency}
+              onValueChange={(filingFrequency) => set({ filingFrequency })}
+              options={[
+                { value: "monthly", label: "Monthly" },
+                { value: "qrmp", label: "Quarterly (QRMP)" },
+              ]}
+            />
+          </Field>
+        )}
+        {registered && (
+          <>
+            <Field
+              label="Annual turnover last year"
+              optional
+              hint="Total sales of the previous financial year across all GSTINs on your PAN (AATO). It decides HSN digits and e-invoicing."
+            >
+              <Input
+                value={g.aato}
+                onChange={(e) => setAato(e.target.value)}
+                inputMode="decimal"
+                placeholder="e.g. 4500000"
+                className="tabular sm:max-w-xs"
+                leading={<span className="text-[13px]">₹</span>}
+              />
+            </Field>
+            <Field
+              label="HSN/SAC digits on invoices"
+              hint={
+                g.hsnDigits === suggestedHsn
+                  ? `${suggestedHsn} digits — ${large ? "turnover above" : "turnover up to"} ₹5 crore.`
+                  : `You chose ${g.hsnDigits} digits; ${suggestedHsn} is the usual minimum for your turnover.`
+              }
+            >
+              <Segmented<"4" | "6">
+                value={String(g.hsnDigits) as "4" | "6"}
+                onValueChange={(v) => set({ hsnDigits: v === "6" ? 6 : 4 })}
+                options={[
+                  { value: "4", label: "4 digits" },
+                  { value: "6", label: "6 digits" },
+                ]}
+                aria-label="Minimum HSN/SAC digits"
+              />
+            </Field>
+            <SwitchRow
+              label="E-invoicing applies to me"
+              description={
+                large && !g.eInvoiceApplicable
+                  ? "Your turnover is above ₹5 crore, so B2B invoices need an IRN from the e-invoice portal. Turn this on."
+                  : "Needed when turnover crossed ₹5 crore in any year since 2017-18. B2B invoices then need an IRN from the e-invoice portal."
+              }
+              checked={g.eInvoiceApplicable}
+              onCheckedChange={(eInvoiceApplicable) => set({ eInvoiceApplicable })}
+            />
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ---------------- Numbering ---------------- */
+
+const RAND_NOTICE_KEY = "invoice-generator:rand-numbering-notice-dismissed";
+const noticeListeners = new Set<() => void>();
+
+function readNoticeDismissed() {
+  try {
+    return localStorage.getItem(RAND_NOTICE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function dismissNotice() {
+  try {
+    localStorage.setItem(RAND_NOTICE_KEY, "1");
+  } catch {
+    // Storage unavailable: the notice simply comes back next time.
+  }
+  noticeListeners.forEach((l) => l());
+}
+
+function useNoticeDismissed() {
+  return useSyncExternalStore(
+    (onChange) => {
+      noticeListeners.add(onChange);
+      return () => noticeListeners.delete(onChange);
+    },
+    readNoticeDismissed,
+    () => true,
+  );
+}
+
+/** One-time notice for GST series that still use random numbers (A3). */
+function RandomNumberingNotice({ draft, update }: SectionProps) {
+  const dismissed = useNoticeDismissed();
+  const affected = gstSeriesUsingRandom(draft.numbering);
+  if (dismissed || affected.length === 0) return null;
+  const switchAll = () => {
+    update("numbering", (prev) => {
+      const next = { ...prev };
+      for (const t of affected) next[t] = { ...next[t], pattern: DEFAULT_NUMBER_PATTERN };
+      return next;
+    });
+    dismissNotice();
+  };
+  return (
+    <Alert
+      tone="warning"
+      title="GST law needs consecutive invoice numbers"
+      icon={<Hash />}
+      action={
+        <div className="flex gap-2">
+          <Button size="sm" variant="primary" onClick={switchAll}>
+            Switch
+          </Button>
+          <Button size="sm" variant="ghost" onClick={dismissNotice}>
+            Not now
+          </Button>
+        </div>
+      }
+    >
+      {affected.map((t) => DOC_TYPE_META[t].label).join(", ")}{" "}
+      {affected.length === 1 ? "uses" : "use"} random digits. Switch to INV/26-27/001 style — a
+      running number per financial year.
+    </Alert>
+  );
+}
 
 export function NumberingSection({ draft, update }: SectionProps) {
   const now = new Date();
   return (
     <div className="space-y-4">
+      <RandomNumberingNotice draft={draft} update={update} />
       <Alert tone="info" title="GST tip" icon={<Sparkles />}>
         Tax invoice numbers should be consecutive, unique per financial year and at most 16
         characters. The default{" "}
