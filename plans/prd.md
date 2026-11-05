@@ -2,7 +2,7 @@
 ## Invoice Generator — Free, Browser-Only Web App
 
 **Document version:** 2.0
-**Status:** MVP Specification (re-scoped)
+**Status:** MVP Specification (re-scoped). The MVP is built. Later work (GST suite, compliance, backups) is specified in `plans/feature-list.md` and `plans/business-gst-suite.md`, which supersede this document where they conflict.
 **Product type:** Static, frontend-only web application. No backend, no login.
 **Hosting:** Vercel free tier (static export)
 **Primary objective:** Let anyone create professional GST-ready invoices in the browser, customize their design, and save them as print-ready PDFs at zero cost. Nothing leaves the user's device.
@@ -730,14 +730,14 @@ Monetary and quantity values are stored as **decimal strings** and converted to 
 ## 19. Future Enhancements
 
 - Optional cloud backup or sync (e.g. Google Drive), and optional accounts.
-- PWA / offline install.
+- ~~PWA / offline install.~~ Done: service worker precaches the app; installable.
 - Multiple business profiles.
 - Cess, reverse charge, shipping and other charges with their own GST rate.
 - Export with payment of IGST; exchange-rate field for export invoices.
 - E-invoicing (IRN, signed QR) for businesses above the threshold; e-way bill details.
-- Email sending, payment links and reminders; recurring invoices.
-- Credit and debit notes.
-- History export to Excel/CSV; GSTR-1 friendly export.
+- Email sending, payment links and reminders; recurring invoices. Partly done: a Share dialog opens the user's own WhatsApp, mail app or share sheet with a prefilled message and the UPI pay link. Nothing is sent by the app, so reminders and recurring invoices are still open.
+- ~~Credit and debit notes.~~ Done (created from an invoice; own numbering).
+- ~~History export to CSV; GSTR-1 friendly export.~~ Done (registers as CSV; GSTR-1 JSON and CSV on the GST Returns page). Excel is not planned.
 - Direct one-click PDF download (e.g. a react-pdf based renderer) as an alternative to print.
 
 ---
@@ -757,7 +757,7 @@ Monetary and quantity values are stored as **decimal strings** and converted to 
 | Document types | Invoice only | Tax Invoice, Bill of Supply, Proforma/Quotation, Export |
 | Numbering | Sequential, server-assigned on issue | User-defined pattern with date/time/FY/SEQ tokens |
 | Payments | Multiple payment records with audit trail | Single "amount received" with derived status |
-| Lifecycle | Draft → Issued → Paid / Void with locking | Draft → Downloaded; editing allowed, with a notice |
+| Lifecycle | Draft → Issued → Paid / Void with locking | Draft → Downloaded; editing allowed, with a notice. *Superseded:* an explicit Issued state now exists; issued invoices can't be deleted, only cancelled or credited (see feature list A1–A2, B3) |
 | Audit log, rate limiting, backups | Required | Not applicable; replaced by local backups and storage warnings |
 | New | — | UPI QR, amount in words, item catalog, storage-loss warnings, invoice file import |
 

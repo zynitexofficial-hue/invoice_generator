@@ -1,6 +1,6 @@
 # Business & GST Suite — Research and Implementation Plan
 
-**Status:** Proposal — no application code changed yet  
+**Status:** Phase 1 is implemented on the `dev` branch (unit-tested; not yet merged to `main`, and GST output not yet checked against real returns). Phases 2–4 are not started. Sections 1–12 are the original 5 Nov 2026 proposal, kept for the reasoning; the feature gap matrix (§3.4) shows current status.  
 **Date:** 5 November 2026  
 **Product constraint:** Static Next.js export, IndexedDB only, no backend, no login, no cloud, privacy-first  
 **Hard rule:** Everything runs inside the user's browser. There are no API routes, no server actions, no background jobs, and no calls to GSTN, IRP, or any third party. Exports are downloaded to the user's machine; the user uploads them to the relevant portal manually.  
@@ -166,59 +166,61 @@ Priority: **Must** for a credible business MVP, **Should** next, **Later**, **No
 |---|---|---|---|---|---|
 | Sales | Tax invoice, bill of supply, export, proforma | Core selling workflow | Done | — | — |
 | Sales | Customer and item masters | Reuse data | Done | — | — |
-| Sales | Payment received / balance due | Receivables | Partial | Must | 1 |
-| Sales | Credit/debit notes | Sales returns, discounts, price revisions; GSTR-1 CDNR/CDNUR | Missing | Must | 1 |
-| Sales | Invoice cancellation | Correct GSTR-1 DOCS reporting | Missing | Must | 1 |
+| Sales | Payment received / balance due | Receivables | Done | Must | 1 |
+| Sales | Credit/debit notes | Sales returns, discounts, price revisions; GSTR-1 CDNR/CDNUR | Done | Must | 1 |
+| Sales | Invoice cancellation | Correct GSTR-1 DOCS reporting | Done | Must | 1 |
 | Sales | Payment history/ledger | Accurate cash flow and receipts | Missing | Should | 2 |
 | Sales | Recurring invoices | Repeat customers | Missing | Later | 2/3 |
 | Sales | Customer statements/reminders | Collections | Missing | Later | 3/5 |
 | Sales | Multi-GSTIN | Multiple registrations | Missing | Later | 5 |
-| Spend | Expenses | Daily business spending | Missing | Must | 1 |
-| Spend | Other income | Non-invoice income | Missing | Must | 1 |
-| Spend | GST/ITC on expenses | GSTR-3B input tax credit | Missing | Must | 1 |
+| Spend | Expenses | Daily business spending | Done | Must | 1 |
+| Spend | Other income | Non-invoice income | Done | Must | 1 |
+| Spend | GST/ITC on expenses | GSTR-3B input tax credit | Done | Must | 1 |
 | Spend | Vendor master | Reuse vendor details | Missing | Should | 3 |
 | Spend | Purchase bills and payables | Accurate purchases and payment tracking | Missing | Should | 3 |
 | Spend | Receipt attachments | Audit support | Missing | Later | 3 |
 | Spend | Recurring expenses | Rent, subscriptions | Missing | Later | 3 |
-| GST | GSTR-1 summary and validation | Outward return | Missing | Must | 1 |
-| GST | GSTR-1 JSON/CSV export | Portal-ready file | Missing | Must | 1 |
-| GST | GSTR-3B outward worksheet | Tax liability visibility | Missing | Must | 1 |
+| GST | GSTR-1 summary and validation | Outward return | Done | Must | 1 |
+| GST | GSTR-1 JSON/CSV export | Portal-ready file | Done | Must | 1 |
+| GST | GSTR-3B outward worksheet | Tax liability visibility | Done | Must | 1 |
 | GST | ITC and full GSTR-3B | Accurate tax payable | Missing | Should | 3 |
 | GST | GSTR-2B/IMS import and reconciliation | ITC matching | Missing | Should | 3 |
 | GST | GSTR-9/9C | Annual compliance | Missing | Later | 4 |
 | GST | Amendments / GSTR-1A | Corrections after filing | Missing | Should | 2 |
-| GST | Filing tracker and ARN | Know what was filed | Missing | Must | 1 |
-| GST | Compliance calendar | Avoid late fees | Missing | Should | 1/2 |
+| GST | Filing tracker and ARN | Know what was filed | Done | Must | 1 |
+| GST | Compliance calendar | Avoid late fees | Done | Should | 1/2 |
 | GST | E-invoice bulk JSON | IRP upload | Missing | Must (user) | 2 |
 | GST | E-way bill | Movement of goods | Missing | No | Later |
 | GST | Composition / GSTR-4 | Composition dealers | Missing | Later | 4 |
 | GST | TDS/TCS | Special cases | Missing | No | Later |
 | GST | Income Tax Return | Different system | Missing | No | Tax pack only |
-| Reports | Sales register | Sales review | Partial | Must | 1 |
-| Reports | Expense/income register | Spend review | Missing | Must | 1 |
-| Reports | Simple P&L | Profit visibility | Missing | Must | 1 |
-| Reports | GST summary | Tax review | Missing | Must | 1 |
-| Reports | HSN summary | GSTR-1 support | Missing | Must | 1 |
-| Reports | Receivables ageing | Collections | Missing | Must | 1 |
+| Reports | Sales register | Sales review | Done | Must | 1 |
+| Reports | Expense/income register | Spend review | Done | Must | 1 |
+| Reports | Simple P&L | Profit visibility | Done | Must | 1 |
+| Reports | GST summary | Tax review | Done | Must | 1 |
+| Reports | HSN summary | GSTR-1 support | Done | Must | 1 |
+| Reports | Receivables ageing | Collections | Done | Must | 1 |
 | Reports | Payables ageing | Vendor payments | Missing | Should | 3 |
 | Reports | Cash flow | Cash visibility | Missing | Should | 3 |
 | Reports | Customer/vendor statements | Account statements | Missing | Later | 3 |
-| Reports | CSV export | CA/accountant handoff | Missing | Must | 1 |
-| Analytics | Dashboard KPIs with period comparison | Know the business at a glance | Partial | Must | 1 |
-| Analytics | Revenue/expense/profit trends | See direction, not just totals | Missing | Must | 1 |
-| Analytics | Expense category breakdown | Find where money goes | Missing | Must | 1 |
-| Analytics | Top customers/items/states | Focus on what drives sales | Missing | Must | 1 |
-| Analytics | GST output vs ITC analytics | Understand the tax position | Missing | Must | 1 |
-| Analytics | Receivables ageing and top overdue | Improve collections | Missing | Must | 1 |
-| Analytics | Actionable insights | Turn data into next steps | Missing | Should | 1 |
-| Analytics | Chart drill-down and CSV export | Investigate and share | Missing | Should | 1 |
+| Reports | CSV export | CA/accountant handoff | Done | Must | 1 |
+| Analytics | Dashboard KPIs with period comparison | Know the business at a glance | Done | Must | 1 |
+| Analytics | Revenue/expense/profit trends | See direction, not just totals | Done | Must | 1 |
+| Analytics | Expense category breakdown | Find where money goes | Done | Must | 1 |
+| Analytics | Top customers/items/states | Focus on what drives sales | Done | Must | 1 |
+| Analytics | GST output vs ITC analytics | Understand the tax position | Done | Must | 1 |
+| Analytics | Receivables ageing and top overdue | Improve collections | Done | Must | 1 |
+| Analytics | Actionable insights | Turn data into next steps | Done | Should | 1 |
+| Analytics | Chart drill-down and CSV export | Investigate and share | Done | Should | 1 |
 | Analytics | Cash-flow analytics | Cash visibility | Missing | Should | 3 |
 | Analytics | Third-party tracking/telemetry | Privacy violation | Out of scope | No | — |
-| Data | Backup/restore for all new data | No data loss | Partial | Must | 1 |
-| Data | Schema migration and data health | Safe upgrades | Partial | Must | 1 |
+| Data | Backup/restore for all new data | No data loss | Done | Must | 1 |
+| Data | Schema migration and data health | Safe upgrades | Done | Must | 1 |
 | Data | CSV import | Onboarding from other tools | Missing | Later | 2/3 |
-| Data | Audit trail | Trace changes after filing | Missing | Should | 2 |
+| Data | Audit trail | Trace changes after filing | Partial — log is written, no per-invoice view yet | Should | 2 |
 | Data | Cloud sync / multi-user | Multi-device teams | Out of scope | No | — |
+
+*Rows marked Done were Phase 1 and are implemented and unit-tested. "Done" does not mean verified against the GST portal or a CA — that check is still outstanding. Phase 2+ rows are unchanged.*
 
 ### 3.5 What we should not build (to avoid overload)
 
