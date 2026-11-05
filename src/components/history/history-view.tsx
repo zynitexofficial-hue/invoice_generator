@@ -10,6 +10,7 @@ import {
   Download,
   Ellipsis,
   FileText,
+  History,
   Pencil,
   Plus,
   ScrollText,
@@ -26,6 +27,7 @@ import { toast } from "sonner";
 import { exportInvoiceFile } from "@/db/backup";
 import { useFilings, useInvoices, useSettings } from "@/db/hooks";
 import { confirmCancel, confirmDelete } from "@/components/document-lifecycle";
+import { openChangeHistory } from "@/components/history/change-history-dialog";
 import { openShare } from "@/components/share/share-dialog";
 import { DOC_TYPE_META } from "@/lib/documents";
 import { formatDate, todayISO } from "@/lib/dates";
@@ -668,6 +670,9 @@ function RowActions({
             Record payment
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem icon={<History />} onSelect={() => openChangeHistory(inv)}>
+          History of changes
+        </DropdownMenuItem>
         <DropdownMenuItem icon={<Copy />} onSelect={() => router.push(`/invoice?from=${inv.id}`)}>
           Duplicate
         </DropdownMenuItem>

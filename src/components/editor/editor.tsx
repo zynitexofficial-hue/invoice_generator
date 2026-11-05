@@ -9,6 +9,7 @@ import {
   Eye,
   FilePlus,
   FileText,
+  History,
   Palette,
   PenLine,
   Search,
@@ -69,6 +70,7 @@ import { SaveStatus } from "./save-status";
 import { revealField } from "./section";
 import { AnimatedAmount, NotesSection, PaymentSection, SummarySection } from "./summary-section";
 import { flushSave, useAutosave } from "./use-autosave";
+import { openChangeHistory } from "@/components/history/change-history-dialog";
 import { openShare } from "@/components/share/share-dialog";
 import { useDownload } from "./use-download";
 
@@ -542,6 +544,17 @@ function Toolbar({
                 }}
               >
                 Share…
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                icon={<History />}
+                disabled={!persisted}
+                onSelect={async () => {
+                  await flushSave();
+                  const latest = useEditor.getState().invoice;
+                  if (latest) openChangeHistory(latest);
+                }}
+              >
+                History of changes
               </DropdownMenuItem>
               <DropdownMenuItem icon={<Braces />} onSelect={() => void exportFile()}>
                 Save invoice file (.json)

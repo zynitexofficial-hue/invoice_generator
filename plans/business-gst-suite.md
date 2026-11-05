@@ -217,7 +217,7 @@ Priority: **Must** for a credible business MVP, **Should** next, **Later**, **No
 | Data | Backup/restore for all new data | No data loss | Done | Must | 1 |
 | Data | Schema migration and data health | Safe upgrades | Done | Must | 1 |
 | Data | CSV import | Onboarding from other tools | Missing | Later | 2/3 |
-| Data | Audit trail | Trace changes after filing | Partial — log is written, no per-invoice view yet | Should | 2 |
+| Data | Audit trail | Trace changes after filing | Partial — invoices have a history view; other records don't | Should | 2 |
 | Data | Cloud sync / multi-user | Multi-device teams | Out of scope | No | — |
 
 *Rows marked Done were Phase 1 and are implemented and unit-tested. "Done" does not mean verified against the GST portal or a CA — that check is still outstanding. Phase 2+ rows are unchanged.*

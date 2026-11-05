@@ -4,6 +4,7 @@ import { PrintHost } from "@/components/document/print-host";
 import { AppShell } from "@/components/layout/app-shell";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { InstallHelpDialog } from "@/components/layout/install-app";
+import { ChangeHistoryHost } from "@/components/history/change-history-dialog";
 import { ShareHost } from "@/components/share/share-dialog";
 import { FileActionsHost } from "@/components/storage/file-actions";
 import { LockScreenHost } from "@/components/security/lock-screen-host";
@@ -24,6 +25,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <WelcomeDialog />
       <FileActionsHost />
       <ShareHost />
+      <ChangeHistoryHost />
       <CommandPalette />
       <InstallHelpDialog />
       <ConfirmHost />
