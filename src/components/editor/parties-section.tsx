@@ -393,6 +393,8 @@ const EMPTY_CUSTOMER: InvoiceCustomer = {
   phone: "",
   billingAddress: "",
   shippingAddress: "",
+  city: "",
+  pincode: "",
   stateCode: "",
   country: "India",
   gstin: "",

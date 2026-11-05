@@ -5,7 +5,14 @@ import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { DOC_TYPE_META, PROFORMA_TITLES } from "@/lib/documents";
 import { addDaysISO, formatDate } from "@/lib/dates";
-import { DOC_TYPES, type DocType } from "@/lib/schema";
+import {
+  CREATABLE_DOC_TYPES,
+  isNoteDocType,
+  NOTE_REASON_LABELS,
+  NOTE_REASONS,
+  type DocType,
+  type NoteReason,
+} from "@/lib/schema";
 import { fieldId } from "@/lib/validation";
 import { useEditor } from "@/stores/editor-store";
 import { Button } from "@/components/ui/button";
@@ -35,6 +42,7 @@ export function DocumentSection() {
       poNo: s.invoice!.poNo,
     })),
   );
+  const note = useEditor((s) => s.invoice!.note);
   const patch = useEditor((s) => s.patch);
   const { changeDocType, regenerateNumber, setInvoiceDate } = useEditorActions();
   const numberIssue = useFieldIssue(fieldId.number);
@@ -74,7 +82,7 @@ export function DocumentSection() {
       title="Document"
       icon={<FileText />}
       collapsible
-      defaultOpen={d.docType === "export"}
+      defaultOpen={d.docType === "export" || isNoteDocType(d.docType)}
       hasIssue={hasIssue}
       fields={[fieldId.number, fieldId.invoiceDate, fieldId.dueDate]}
       summary={summary}
@@ -82,16 +90,21 @@ export function DocumentSection() {
       <div className="grid gap-2.5 sm:gap-3">
         <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
           <Field label="Type">
-            <Select<DocType>
-              value={d.docType}
-              onValueChange={(v) => void changeDocType(v)}
-              options={DOC_TYPES.map((t) => ({
-                value: t,
-                label: DOC_TYPE_META[t].label,
-                description: DOC_TYPE_META[t].description,
-              }))}
-              renderValue={(v) => DOC_TYPE_META[v].label}
-            />
+            {isNoteDocType(d.docType) ? (
+              // Notes are created from an invoice; their type can't be switched.
+              <Input value={meta.label} readOnly aria-readonly />
+            ) : (
+              <Select<DocType>
+                value={d.docType}
+                onValueChange={(v) => void changeDocType(v)}
+                options={CREATABLE_DOC_TYPES.map((t) => ({
+                  value: t,
+                  label: DOC_TYPE_META[t].label,
+                  description: DOC_TYPE_META[t].description,
+                }))}
+                renderValue={(v) => DOC_TYPE_META[v].label}
+              />
+            )}
           </Field>
           <Field
             label={`${meta.shortLabel} number`}
@@ -120,6 +133,30 @@ export function DocumentSection() {
             />
           </Field>
         </div>
+
+        {isNoteDocType(d.docType) && (
+          <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
+            <p className="text-sm text-muted-foreground sm:col-span-2">
+              Against invoice{" "}
+              <span className="font-medium text-foreground tabular-nums">
+                {note.originalInvoiceNumber || "—"}
+              </span>
+              {note.originalInvoiceDate && <> dated {formatDate(note.originalInvoiceDate, fmt)}</>}
+            </p>
+            <Field label="Reason">
+              <Select<NoteReason>
+                value={note.reason}
+                onValueChange={(reason) => patch({ note: { ...note, reason } })}
+                options={NOTE_REASONS.filter((r) => r !== "").map((r) => ({
+                  value: r,
+                  label: NOTE_REASON_LABELS[r],
+                }))}
+                renderValue={(v) => NOTE_REASON_LABELS[v]}
+                placeholder="Choose a reason"
+              />
+            </Field>
+          </div>
+        )}
 
         {d.docType === "proforma" && (
           <Field label="Title on document">

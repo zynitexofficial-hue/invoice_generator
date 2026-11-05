@@ -200,6 +200,12 @@ export const useEditor = create<EditorState>((set, get) => {
                 summary: invoice.summary,
                 seqCommitted: invoice.seqCommitted,
                 downloadedAt: invoice.downloadedAt || s.invoice.downloadedAt,
+                // Lifecycle is owned by the database (issue on download, cancel).
+                issuedAt: invoice.issuedAt || s.invoice.issuedAt,
+                status: invoice.status,
+                cancelledAt: invoice.cancelledAt,
+                cancelReason: invoice.cancelReason,
+                schemaVersion: invoice.schemaVersion,
                 updatedAt: invoice.updatedAt,
               }
             : s.invoice,

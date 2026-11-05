@@ -1,7 +1,7 @@
 import { calculateInvoice, type InvoiceTotals } from "@/lib/calc/engine";
 import { DOC_TYPE_META } from "@/lib/documents";
 import { taxKindForInvoice } from "@/lib/gst/tax";
-import type { Invoice, InvoiceSummary } from "@/lib/schema";
+import { isNoteDocType, type Invoice, type InvoiceSummary } from "@/lib/schema";
 
 /** Totals for an invoice record. Always recomputed — never trusted from storage or files. */
 export function computeTotals(invoice: Invoice): InvoiceTotals {
@@ -24,11 +24,28 @@ export function summarize(totals: InvoiceTotals): InvoiceSummary {
   };
 }
 
-export type DisplayStatus = "draft" | "unpaid" | "partial" | "paid" | "overdue" | "quote";
+export type DisplayStatus =
+  "draft" | "unpaid" | "partial" | "paid" | "overdue" | "quote" | "cancelled" | "note";
 
-/** Status shown in lists: derived from download state, payment and due date. */
+/** Issued = has an explicit issue timestamp (set on download/print/share or "Mark issued"). */
+export function isIssued(invoice: Pick<Invoice, "issuedAt">): boolean {
+  return Boolean(invoice.issuedAt);
+}
+
+/**
+ * Not yet issued. Quotations are never "issued" for GST, so a downloaded
+ * quotation counts as sent (not a draft).
+ */
+export function isDraft(invoice: Pick<Invoice, "issuedAt" | "downloadedAt" | "docType">): boolean {
+  if (invoice.docType === "proforma") return !invoice.issuedAt && !invoice.downloadedAt;
+  return !invoice.issuedAt;
+}
+
+/** Status shown in lists: derived from issue state, cancellation, payment and due date. */
 export function displayStatus(invoice: Invoice, todayISO: string): DisplayStatus {
-  if (!invoice.downloadedAt) return "draft";
+  if (invoice.status === "cancelled") return "cancelled";
+  if (isDraft(invoice)) return "draft";
+  if (isNoteDocType(invoice.docType)) return "note";
   if (!DOC_TYPE_META[invoice.docType].hasPayment) return "quote";
   const s = invoice.summary.paymentStatus;
   if (s === "paid") return "paid";

@@ -16,6 +16,8 @@ export interface ConfirmOptions {
   tone?: "default" | "danger";
   /** Require typing this exact text before confirming (for irreversible actions). */
   typeToConfirm?: string;
+  /** Ask for a short text (e.g. a reason); use promptText() to read it. */
+  input?: { label: string; placeholder?: string; required?: boolean; maxLength?: number };
 }
 
 interface ConfirmState {
@@ -44,12 +46,25 @@ const useConfirmStore = create<ConfirmState>((set, get) => ({
 /** Promise-based confirmation: `if (await confirm({...})) { … }` */
 export const confirm = (options: ConfirmOptions) => useConfirmStore.getState().ask(options);
 
+let lastInput = "";
+
+/** Like confirm(), with a text field: resolves to the trimmed text, or null when cancelled. */
+export async function promptText(
+  options: ConfirmOptions & { input: NonNullable<ConfirmOptions["input"]> },
+): Promise<string | null> {
+  lastInput = "";
+  const ok = await useConfirmStore.getState().ask(options);
+  return ok ? lastInput.trim() : null;
+}
+
 /** Mounted once in the root layout. */
 export function ConfirmHost() {
   const { open, options, settle } = useConfirmStore();
   const [typed, setTyped] = useState("");
   const danger = options?.tone === "danger";
-  const blocked = Boolean(options?.typeToConfirm) && typed.trim() !== options?.typeToConfirm;
+  const blocked =
+    (Boolean(options?.typeToConfirm) && typed.trim() !== options?.typeToConfirm) ||
+    (Boolean(options?.input?.required) && !typed.trim());
 
   return (
     <AlertDialog.Root
@@ -100,6 +115,21 @@ export function ConfirmHost() {
                   />
                 </div>
               )}
+              {options?.input && (
+                <div className="mt-4 space-y-1.5">
+                  <label htmlFor="confirm-input" className="text-[13px] font-medium">
+                    {options.input.label}
+                  </label>
+                  <Input
+                    id="confirm-input"
+                    value={typed}
+                    onChange={(e) => setTyped(e.target.value)}
+                    placeholder={options.input.placeholder}
+                    maxLength={options.input.maxLength ?? 300}
+                    autoFocus
+                  />
+                </div>
+              )}
             </div>
           </div>
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -112,6 +142,7 @@ export function ConfirmHost() {
                 disabled={blocked}
                 onClick={(e) => {
                   e.preventDefault();
+                  lastInput = typed;
                   settle(true);
                   setTyped("");
                 }}

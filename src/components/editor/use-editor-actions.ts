@@ -50,7 +50,8 @@ export function useEditorActions() {
   const refreshBusinessCode = useCallback(async () => {
     const inv = useEditor.getState().invoice;
     const pattern = inv ? settings.numbering[inv.docType].pattern : "";
-    if (!inv || !pattern.includes("{BIZ}") || inv.downloadedAt || inv.seqCommitted) return;
+    if (!inv || !pattern.includes("{BIZ}") || inv.issuedAt || inv.downloadedAt || inv.seqCommitted)
+      return;
     if (!inv.autoNumber || inv.autoNumber.value !== inv.number) return;
     const code = businessCode(businessOf(inv));
     if (inv.number.includes(code)) return;

@@ -42,3 +42,44 @@ describe("numbering defaults", () => {
     expect(custom.numbering.tax_invoice.pattern).toBe("{PREFIX}/{FY}/{SEQ:3}");
   });
 });
+
+describe("createNoteFromInvoice", () => {
+  it("copies parties, POS, tax settings and lines, and links the original", async () => {
+    const { createNoteFromInvoice } = await import("@/lib/invoice-factory");
+    const original = {
+      ...createInvoice({ settings: DEFAULT_SETTINGS, designs: [], generated }),
+      number: "INV/26-27/007",
+      invoiceDate: "2026-10-01",
+      placeOfSupply: "29",
+      reverseCharge: true,
+      issuedAt: "2026-10-01T10:00:00.000Z",
+      payment: { amountReceived: "100", date: "2026-10-02", mode: "upi" as const, note: "" },
+    };
+    original.seller = { ...original.seller, stateCode: "27" };
+    original.customer = { ...original.customer, name: "Acme", gstin: "29AAPFU0939F1ZV" };
+    original.lines[0] = { ...original.lines[0], name: "Widget", unitPrice: "500" };
+
+    const note = createNoteFromInvoice(original, "credit_note", DEFAULT_SETTINGS, {
+      number: "CN/26-27/001",
+      autoNumber: null,
+    });
+    expect(note.id).not.toBe(original.id);
+    expect(note.docType).toBe("credit_note");
+    expect(note.docTitle).toBe("Credit Note");
+    expect(note.number).toBe("CN/26-27/001");
+    expect(note.customer.name).toBe("Acme");
+    expect(note.placeOfSupply).toBe("29");
+    expect(note.reverseCharge).toBe(true);
+    expect(note.lines[0].name).toBe("Widget");
+    expect(note.lines[0].id).not.toBe(original.lines[0].id);
+    expect(note.payment.amountReceived).toBe("");
+    expect(note.issuedAt).toBe("");
+    expect(note.note).toEqual({
+      reason: "",
+      originalInvoiceId: original.id,
+      originalInvoiceNumber: "INV/26-27/007",
+      originalInvoiceDate: "2026-10-01",
+    });
+    expect(computeTotals(note).taxKind).toBe("inter");
+  });
+});

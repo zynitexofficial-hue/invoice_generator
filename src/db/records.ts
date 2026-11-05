@@ -8,11 +8,21 @@ import {
   type Customer,
   type SavedDesign,
 } from "@/lib/schema";
+import { diffFields, logAudit, type AuditFields } from "./audit";
 import { getDb } from "./db";
 import { updateSettings } from "./settings";
 import { guardedWrite } from "./write";
 
 /* ---------------- Customers ---------------- */
+
+const CUSTOMER_AUDIT_FIELDS: AuditFields<Customer> = {
+  name: (c) => c.name,
+  company: (c) => c.company,
+  gstin: (c) => c.gstin,
+  stateCode: (c) => c.stateCode,
+  email: (c) => c.email,
+  phone: (c) => c.phone,
+};
 
 export async function saveCustomer(input: Partial<Customer> & { name: string }): Promise<Customer> {
   const now = nowISO();
@@ -22,12 +32,43 @@ export async function saveCustomer(input: Partial<Customer> & { name: string }):
     createdAt: input.createdAt || now,
     updatedAt: now,
   });
-  await guardedWrite("the customer", () => getDb().customers.put(record));
+  const db = getDb();
+  await guardedWrite("the customer", () =>
+    db.transaction("rw", [db.customers, db.auditLog], async () => {
+      const raw = await db.customers.get(record.id);
+      const existing = raw ? customerSchema.safeParse(raw).data : undefined;
+      await db.customers.put(record);
+      const changes = diffFields(existing, record, CUSTOMER_AUDIT_FIELDS);
+      if (!existing || changes.length)
+        await logAudit({
+          entity: "customer",
+          entityId: record.id,
+          action: existing ? "update" : "create",
+          summary: `${existing ? "Edited" : "Added"} customer ${record.name}`,
+          changes,
+        });
+    }),
+  );
   return record;
 }
 
 export async function deleteCustomer(id: string) {
-  await guardedWrite("the change", () => getDb().customers.delete(id), { deletion: true });
+  const db = getDb();
+  await guardedWrite(
+    "the change",
+    () =>
+      db.transaction("rw", [db.customers, db.auditLog], async () => {
+        const existing = await db.customers.get(id);
+        await db.customers.delete(id);
+        await logAudit({
+          entity: "customer",
+          entityId: id,
+          action: "delete",
+          summary: `Deleted customer ${existing?.name ?? ""}`.trim(),
+        });
+      }),
+    { deletion: true },
+  );
 }
 
 /* ---------------- Items ---------------- */

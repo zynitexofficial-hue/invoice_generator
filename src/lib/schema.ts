@@ -5,14 +5,68 @@ import { DEFAULT_NUMBER_PATTERN, LEGACY_NUMBER_PATTERN } from "@/lib/numbering";
 /* Enumerations                                                        */
 /* ------------------------------------------------------------------ */
 
-export const DOC_TYPES = [
+/** Document types a user can start from scratch. */
+export const CREATABLE_DOC_TYPES = [
   "tax_invoice",
   "invoice",
   "bill_of_supply",
   "proforma",
   "export",
 ] as const;
+export type CreatableDocType = (typeof CREATABLE_DOC_TYPES)[number];
+
+/** Credit/debit notes are created from an invoice, never picked as a fresh document type. */
+export const NOTE_DOC_TYPES = ["credit_note", "debit_note"] as const;
+export type NoteDocType = (typeof NOTE_DOC_TYPES)[number];
+
+export const DOC_TYPES = [...CREATABLE_DOC_TYPES, ...NOTE_DOC_TYPES] as const;
 export type DocType = (typeof DOC_TYPES)[number];
+
+export function isNoteDocType(docType: DocType): docType is NoteDocType {
+  return docType === "credit_note" || docType === "debit_note";
+}
+
+export function isCreatableDocType(value: unknown): value is CreatableDocType {
+  return (CREATABLE_DOC_TYPES as readonly unknown[]).includes(value);
+}
+
+export const INVOICE_STATUSES = ["active", "cancelled"] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+
+export const SUPPLY_NATURES = ["taxable", "nil", "exempt", "non_gst", "zero_rated"] as const;
+export type SupplyNature = (typeof SUPPLY_NATURES)[number];
+
+export const EXPORT_TYPES = ["", "wpay", "wopay"] as const;
+export type ExportType = (typeof EXPORT_TYPES)[number];
+
+/** Reasons for issuing a credit/debit note (GSTR-1 CDN reasons). "" = not chosen yet. */
+export const NOTE_REASONS = [
+  "",
+  "sales_return",
+  "post_sale_discount",
+  "deficiency_in_service",
+  "correction_in_invoice",
+  "change_in_pos",
+  "finalization_of_provisional_assessment",
+  "others",
+] as const;
+export type NoteReason = (typeof NOTE_REASONS)[number];
+export const NOTE_REASON_LABELS: Record<NoteReason, string> = {
+  "": "Not specified",
+  sales_return: "Sales return",
+  post_sale_discount: "Post-sale discount",
+  deficiency_in_service: "Deficiency in service",
+  correction_in_invoice: "Correction in invoice",
+  change_in_pos: "Change in POS",
+  finalization_of_provisional_assessment: "Finalization of provisional assessment",
+  others: "Others",
+};
+
+export const E_INVOICE_STATUSES = ["not_applicable", "pending", "generated", "cancelled"] as const;
+export type EInvoiceStatus = (typeof E_INVOICE_STATUSES)[number];
+
+export const ITEM_TYPES = ["goods", "services"] as const;
+export type ItemType = (typeof ITEM_TYPES)[number];
 
 export const GST_MODES = ["single", "split"] as const;
 export type GstMode = (typeof GST_MODES)[number];
@@ -112,11 +166,18 @@ export type BankDetails = z.infer<typeof bankSchema>;
 
 export const sellerSchema = z.object({
   name: text(160),
+  /** Legal name as per PAN/GST registration (when it differs from the trading name). */
+  legalName: text(160),
+  tradeName: text(160),
   address: text(500),
+  city: text(80),
+  pincode: text(6),
   stateCode: text(2),
   country: z.string().max(80).default("India"),
   gstin: text(15),
   pan: text(10),
+  /** MSME Udyam registration number (optional, printed). */
+  udyam: text(30),
   email: text(160),
   phone: text(40),
   website: text(160),
@@ -140,6 +201,8 @@ export const customerFieldsSchema = z.object({
   phone: text(40),
   billingAddress: text(500),
   shippingAddress: text(500),
+  city: text(80),
+  pincode: text(6),
   stateCode: text(2),
   country: z.string().max(80).default("India"),
   gstin: text(15),
@@ -187,6 +250,13 @@ export const lineItemSchema = z.object({
   unitPrice: decimalText,
   discount: discountSchema.prefault({}),
   gstRate: decimalText,
+  itemType: z.enum(ITEM_TYPES).default("goods"),
+  /** GST Unit Quantity Code (PCS, NOS, KGS, OTH…); "" = not set. */
+  uqc: z
+    .string()
+    .max(8)
+    .refine((v) => v === "" || v.length >= 3, "Expected a 3–8 letter unit code")
+    .default(""),
 });
 export type LineItem = z.infer<typeof lineItemSchema>;
 
@@ -283,7 +353,7 @@ export type SavedDesign = z.infer<typeof savedDesignSchema>;
 /* Invoice                                                             */
 /* ------------------------------------------------------------------ */
 
-export const INVOICE_SCHEMA_VERSION = 1;
+export const INVOICE_SCHEMA_VERSION = 2;
 
 export const paymentSchema = z.object({
   amountReceived: decimalText,
@@ -312,9 +382,50 @@ export const invoiceSummarySchema = z.object({
 });
 export type InvoiceSummary = z.infer<typeof invoiceSummarySchema>;
 
-export const invoiceSchema = z.object({
+export const sezSchema = z.object({
+  enabled: z.boolean().default(false),
+  /** SEZ supply with payment of IGST (otherwise under LUT/bond). */
+  withPayment: z.boolean().default(false),
+});
+export type SezDetails = z.infer<typeof sezSchema>;
+
+export const exportDetailsSchema = z.object({
+  /** "wpay" = with IGST payment, "wopay" = under LUT/bond, "" = not set. */
+  type: z.enum(EXPORT_TYPES).default(""),
+  lutNumber: text(60),
+  shippingBillNo: text(20),
+  shippingBillDate: isoDate,
+  portCode: text(10),
+  /** INR per unit of the invoice currency (required for non-INR invoices in returns). */
+  exchangeRate: decimalText,
+});
+export type ExportDetails = z.infer<typeof exportDetailsSchema>;
+
+export const noteDetailsSchema = z.object({
+  reason: z.enum(NOTE_REASONS).default(""),
+  originalInvoiceId: text(64),
+  originalInvoiceNumber: text(60),
+  originalInvoiceDate: isoDate,
+});
+export type NoteDetails = z.infer<typeof noteDetailsSchema>;
+
+export const eInvoiceSchema = z.object({
+  irn: text(64),
+  ackNo: text(30),
+  ackDate: isoDateTime,
+  status: z.enum(E_INVOICE_STATUSES).default("not_applicable"),
+});
+export type EInvoiceDetails = z.infer<typeof eInvoiceSchema>;
+
+/** Stored/file versions 1 and 2 are accepted; output is always the current version. */
+const invoiceSchemaVersion = z
+  .union([z.literal(1), z.literal(2)])
+  .default(INVOICE_SCHEMA_VERSION)
+  .transform((): typeof INVOICE_SCHEMA_VERSION => INVOICE_SCHEMA_VERSION);
+
+export const invoiceObjectSchema = z.object({
   id: z.string().min(1),
-  schemaVersion: z.literal(INVOICE_SCHEMA_VERSION).default(INVOICE_SCHEMA_VERSION),
+  schemaVersion: invoiceSchemaVersion,
   docType: z.enum(DOC_TYPES).default("tax_invoice"),
   /** Displayed title, e.g. "Tax Invoice", "Quotation". */
   docTitle: text(60),
@@ -357,11 +468,40 @@ export const invoiceSchema = z.object({
     .default(null),
   /** Set once the number has consumed a {SEQ} counter value. */
   seqCommitted: z.boolean().default(false),
+  /** When the document was issued (downloaded/printed/shared or marked issued). "" = draft. */
+  issuedAt: isoDateTime,
+  status: z.enum(INVOICE_STATUSES).default("active"),
+  cancelledAt: isoDateTime,
+  cancelReason: text(300),
+  supplyNature: z.enum(SUPPLY_NATURES).default("taxable"),
+  /** Tax payable on reverse charge. */
+  reverseCharge: z.boolean().default(false),
+  sez: sezSchema.prefault({}),
+  exportDetails: exportDetailsSchema.prefault({}),
+  /** Credit/debit notes: the original invoice and the reason. */
+  note: noteDetailsSchema.prefault({}),
+  eInvoice: eInvoiceSchema.prefault({}),
   downloadedAt: isoDateTime,
   createdAt: isoDateTime,
   updatedAt: isoDateTime,
 });
-export type Invoice = z.infer<typeof invoiceSchema>;
+
+/**
+ * v1 → v2 upgrade applied on every read path: documents downloaded before the
+ * explicit issued state existed count as issued when they were downloaded.
+ */
+function upgradeInvoiceInput(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const obj = raw as Record<string, unknown>;
+  const version = obj.schemaVersion ?? 1;
+  if (version === 1 && !obj.issuedAt && typeof obj.downloadedAt === "string" && obj.downloadedAt) {
+    return { ...obj, issuedAt: obj.downloadedAt };
+  }
+  return raw;
+}
+
+export const invoiceSchema = z.preprocess(upgradeInvoiceInput, invoiceObjectSchema);
+export type Invoice = z.infer<typeof invoiceObjectSchema>;
 
 /* ------------------------------------------------------------------ */
 /* Settings                                                            */
@@ -396,12 +536,54 @@ export const securitySettingsSchema = z.object({
 });
 export type SecuritySettings = z.infer<typeof securitySettingsSchema>;
 
+export const EXPENSE_ITC_DEFAULTS = ["eligible", "ineligible", "no_gst"] as const;
+export type ExpenseItcDefault = (typeof EXPENSE_ITC_DEFAULTS)[number];
+
+export const expenseCategorySchema = z.object({
+  name: z.string().min(1).max(60),
+  defaultItc: z.enum(EXPENSE_ITC_DEFAULTS).default("eligible"),
+});
+export type ExpenseCategory = z.infer<typeof expenseCategorySchema>;
+
+/** Default expense categories (spec D3); s.17(5) blocked credits default to ineligible. */
+export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategory[] = [
+  { name: "Rent", defaultItc: "eligible" },
+  { name: "Salaries & wages", defaultItc: "no_gst" },
+  { name: "Utilities", defaultItc: "eligible" },
+  { name: "Internet & phone", defaultItc: "eligible" },
+  { name: "Travel", defaultItc: "eligible" },
+  { name: "Fuel", defaultItc: "ineligible" },
+  { name: "Food & entertainment", defaultItc: "ineligible" },
+  { name: "Office supplies", defaultItc: "eligible" },
+  { name: "Software & subscriptions", defaultItc: "eligible" },
+  { name: "Professional fees", defaultItc: "eligible" },
+  { name: "Marketing", defaultItc: "eligible" },
+  { name: "Repairs & maintenance", defaultItc: "eligible" },
+  { name: "Raw materials", defaultItc: "eligible" },
+  { name: "Purchases for resale", defaultItc: "eligible" },
+  { name: "Freight", defaultItc: "eligible" },
+  { name: "Bank charges", defaultItc: "no_gst" },
+  { name: "Insurance", defaultItc: "ineligible" },
+  { name: "Taxes & fees", defaultItc: "no_gst" },
+  { name: "Equipment", defaultItc: "eligible" },
+  { name: "Other", defaultItc: "eligible" },
+];
+
+/** Default other-income categories (spec E1). */
+export const DEFAULT_INCOME_CATEGORIES = [
+  "Interest",
+  "Commission",
+  "Rent received",
+  "Refund",
+  "Other",
+];
+
 export const settingsSchema = z.object({
   id: z.literal("app").default("app"),
   profile: sellerSchema.prefault({}),
   invoiceDefaults: z
     .object({
-      docType: z.enum(DOC_TYPES).default("tax_invoice"),
+      docType: z.enum(CREATABLE_DOC_TYPES).default("tax_invoice"),
       currency: z
         .string()
         .regex(/^[A-Z]{3}$/)
@@ -427,6 +609,12 @@ export const settingsSchema = z.object({
       rates: z.array(z.string().max(8)).max(20).default(["0", "0.25", "3", "5", "18", "40"]),
       pricesIncludeGst: z.boolean().default(false),
       roundOff: z.boolean().default(true),
+      registrationType: z.enum(["regular", "composition", "unregistered"]).default("regular"),
+      filingFrequency: z.enum(["monthly", "qrmp"]).default("monthly"),
+      /** Aggregate annual turnover (₹) of the previous FY, as decimal text. */
+      aato: decimalText,
+      eInvoiceApplicable: z.boolean().default(false),
+      hsnDigits: z.union([z.literal(4), z.literal(6)]).default(4),
     })
     .prefault({}),
   numbering: z
@@ -436,6 +624,8 @@ export const settingsSchema = z.object({
       bill_of_supply: numberingRuleSchema.prefault({ prefix: "BOS" }),
       proforma: numberingRuleSchema.prefault({ prefix: "QTN" }),
       export: numberingRuleSchema.prefault({ prefix: "EXP" }),
+      credit_note: numberingRuleSchema.prefault({ prefix: "CN" }),
+      debit_note: numberingRuleSchema.prefault({ prefix: "DN" }),
     })
     .prefault({}),
   formats: z
@@ -470,8 +660,28 @@ export const settingsSchema = z.object({
     .object({
       reminderDays: z.number().int().min(0).max(365).default(14),
       lastBackupAt: isoDateTime,
+      /** Automatic backups to a user-chosen folder (File System Access API). */
+      autoFolderEnabled: z.boolean().default(false),
+      keepCount: z.number().int().min(1).max(365).default(14),
+      /** Encrypt backup files with a passphrase. */
+      encrypt: z.boolean().default(false),
     })
     .prefault({}),
+  privacy: z
+    .object({
+      /** Grievance/contact email the business shows its customers. */
+      contactEmail: text(160),
+      retentionYears: z.number().int().min(1).max(50).default(8),
+    })
+    .prefault({}),
+  expenseCategories: z
+    .array(expenseCategorySchema)
+    .max(100)
+    .default(() => DEFAULT_EXPENSE_CATEGORIES.map((c) => ({ ...c }))),
+  incomeCategories: z
+    .array(z.string().min(1).max(60))
+    .max(100)
+    .default(() => [...DEFAULT_INCOME_CATEGORIES]),
   security: securitySettingsSchema.prefault({}),
   onboarding: z
     .object({
@@ -484,6 +694,164 @@ export const settingsSchema = z.object({
 export type AppSettings = z.infer<typeof settingsSchema>;
 
 export const DEFAULT_SETTINGS: AppSettings = settingsSchema.parse({});
+
+/* ------------------------------------------------------------------ */
+/* Expenses & other income                                             */
+/* ------------------------------------------------------------------ */
+
+export const EXPENSE_GST_MODES = ["none", "intra", "inter"] as const;
+export type ExpenseGstMode = (typeof EXPENSE_GST_MODES)[number];
+export const ITC_TYPES = ["inputs", "input_services", "capital_goods", "ineligible"] as const;
+export type ItcType = (typeof ITC_TYPES)[number];
+
+export const expenseSummarySchema = z.object({
+  taxable: z.string().default("0.00"),
+  cgst: z.string().default("0.00"),
+  sgst: z.string().default("0.00"),
+  igst: z.string().default("0.00"),
+  total: z.string().default("0.00"),
+});
+export type ExpenseSummary = z.infer<typeof expenseSummarySchema>;
+
+export const EXPENSE_SCHEMA_VERSION = 1;
+
+export const expenseSchema = z.object({
+  id: z.string().min(1),
+  schemaVersion: z.literal(EXPENSE_SCHEMA_VERSION).default(EXPENSE_SCHEMA_VERSION),
+  date: isoDate,
+  vendorName: text(160),
+  vendorGstin: text(15),
+  vendorStateCode: text(2),
+  category: text(60),
+  description: text(500),
+  /** Amount as entered (see amountIncludesGst). */
+  amount: decimalText,
+  amountIncludesGst: z.boolean().default(true),
+  gstRate: decimalText,
+  gstMode: z.enum(EXPENSE_GST_MODES).default("none"),
+  itcEligible: z.boolean().default(false),
+  itcType: z.enum(ITC_TYPES).default("inputs"),
+  reverseCharge: z.boolean().default(false),
+  invoiceNo: text(60),
+  invoiceDate: isoDate,
+  paymentStatus: z.enum(["unpaid", "partial", "paid"]).default("paid"),
+  paymentDate: isoDate,
+  paymentMode: z.enum(PAYMENT_MODES).default(""),
+  notes: text(1000),
+  /** Computed on save (see computeExpenseSummary); never trusted from input. */
+  summary: expenseSummarySchema.prefault({}),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type Expense = z.infer<typeof expenseSchema>;
+
+export const INCOME_SCHEMA_VERSION = 1;
+
+export const incomeSchema = z.object({
+  id: z.string().min(1),
+  schemaVersion: z.literal(INCOME_SCHEMA_VERSION).default(INCOME_SCHEMA_VERSION),
+  date: isoDate,
+  source: text(160),
+  category: text(60),
+  amount: decimalText,
+  notes: text(1000),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type Income = z.infer<typeof incomeSchema>;
+
+/* ------------------------------------------------------------------ */
+/* GST filings                                                         */
+/* ------------------------------------------------------------------ */
+
+export const RETURN_TYPES = ["GSTR-1", "IFF", "GSTR-3B", "GSTR-1A", "GSTR-9"] as const;
+export type ReturnType = (typeof RETURN_TYPES)[number];
+export const PERIOD_KINDS = ["month", "quarter", "fy"] as const;
+export type PeriodKind = (typeof PERIOD_KINDS)[number];
+export const FILING_STATUSES = ["not_started", "data_ready", "exported", "filed"] as const;
+export type FilingStatus = (typeof FILING_STATUSES)[number];
+
+/** "2026-10" (month), "2026-Q3" (quarter), "FY2026-27" (financial year). */
+export const PERIOD_KEY_RE = /^(\d{4}-(0[1-9]|1[0-2])|\d{4}-Q[1-4]|FY\d{4}-\d{2})$/;
+
+export const filingSchema = z.object({
+  /** `${periodKey}:${returnType}` */
+  id: z.string().min(1),
+  periodKey: z
+    .string()
+    .regex(PERIOD_KEY_RE, "Expected a period like 2026-10, 2026-Q3 or FY2026-27"),
+  periodKind: z.enum(PERIOD_KINDS),
+  returnType: z.enum(RETURN_TYPES),
+  status: z.enum(FILING_STATUSES).default("not_started"),
+  dueDate: isoDate,
+  exportedAt: isoDateTime,
+  filedAt: isoDateTime,
+  arn: text(30),
+  lateFee: decimalText,
+  interest: decimalText,
+  notes: text(1000),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type Filing = z.infer<typeof filingSchema>;
+
+export function filingId(periodKey: string, returnType: ReturnType) {
+  return `${periodKey}:${returnType}`;
+}
+
+export const snapshotRecordSchema = z.object({
+  kind: z.enum(["invoice", "expense"]),
+  id: z.string().min(1),
+  hash: z.string(),
+});
+export type SnapshotRecord = z.infer<typeof snapshotRecordSchema>;
+
+export const returnSnapshotSchema = z.object({
+  id: z.string().min(1),
+  filingId: z.string().min(1),
+  periodKey: z.string().regex(PERIOD_KEY_RE),
+  returnType: z.enum(RETURN_TYPES),
+  generatedAt: isoDateTime,
+  totals: z.record(z.string(), z.string()).default({}),
+  records: z.array(snapshotRecordSchema).default([]),
+  createdAt: isoDateTime,
+});
+export type ReturnSnapshot = z.infer<typeof returnSnapshotSchema>;
+
+/* ------------------------------------------------------------------ */
+/* Audit log                                                           */
+/* ------------------------------------------------------------------ */
+
+export const AUDIT_ENTITIES = [
+  "invoice",
+  "expense",
+  "income",
+  "customer",
+  "item",
+  "filing",
+  "settings",
+] as const;
+export type AuditEntity = (typeof AUDIT_ENTITIES)[number];
+export const AUDIT_ACTIONS = ["create", "update", "issue", "cancel", "delete", "restore"] as const;
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+
+export const auditChangeSchema = z.object({
+  field: z.string().max(60),
+  from: z.string().max(200).default(""),
+  to: z.string().max(200).default(""),
+});
+export type AuditChange = z.infer<typeof auditChangeSchema>;
+
+export const auditEntrySchema = z.object({
+  id: z.string().min(1),
+  entity: z.enum(AUDIT_ENTITIES),
+  entityId: z.string().min(1),
+  action: z.enum(AUDIT_ACTIONS),
+  at: isoDateTime,
+  summary: text(500),
+  changes: z.array(auditChangeSchema).max(30).default([]),
+});
+export type AuditEntry = z.infer<typeof auditEntrySchema>;
 
 /* ------------------------------------------------------------------ */
 /* Files                                                               */
@@ -508,12 +876,18 @@ export const backupFileSchema = z.object({
   schemaVersion: z.number().int().min(1),
   exportedAt: z.string(),
   data: z.object({
-    settings: settingsSchema.optional(),
+    /** Never contains real security settings: they are stripped on export and ignored on restore. */
+    settings: settingsSchema.omit({ security: true }).optional(),
     customers: z.array(customerSchema).default([]),
     items: z.array(catalogItemSchema).default([]),
     invoices: z.array(invoiceSchema).default([]),
     designs: z.array(savedDesignSchema).default([]),
     counters: z.array(counterSchema).default([]),
+    expenses: z.array(expenseSchema).default([]),
+    incomes: z.array(incomeSchema).default([]),
+    filings: z.array(filingSchema).default([]),
+    returnSnapshots: z.array(returnSnapshotSchema).default([]),
+    auditLog: z.array(auditEntrySchema).default([]),
   }),
 });
 export type BackupFile = z.infer<typeof backupFileSchema>;

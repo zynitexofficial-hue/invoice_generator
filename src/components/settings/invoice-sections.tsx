@@ -8,17 +8,19 @@ import { formatMoney } from "@/lib/format";
 import {
   checkGstNumberRules,
   DEFAULT_NUMBER_PATTERN,
+  RANDOM_NUMBER_PATTERN,
   formatDocumentNumber,
   NUMBER_TOKENS,
   unknownTokens,
 } from "@/lib/numbering";
 import { sanitizeDecimalInput } from "@/lib/money";
 import {
+  CREATABLE_DOC_TYPES,
   DATE_FORMAT_IDS,
   DOC_TYPES,
   type AppSettings,
+  type CreatableDocType,
   type DateFormatId,
-  type DocType,
   type GstMode,
 } from "@/lib/schema";
 import { ThemeSegmented } from "@/components/layout/theme-toggle";
@@ -61,10 +63,13 @@ export function DefaultsSection({ draft, update }: SectionProps) {
         <CardContent className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Default document type">
-              <Select<DocType>
+              <Select<CreatableDocType>
                 value={d.docType}
                 onValueChange={(docType) => set({ docType })}
-                options={DOC_TYPES.map((t) => ({ value: t, label: DOC_TYPE_META[t].label }))}
+                options={CREATABLE_DOC_TYPES.map((t) => ({
+                  value: t,
+                  label: DOC_TYPE_META[t].label,
+                }))}
               />
             </Field>
             <Field label="Quotation title">
@@ -340,12 +345,11 @@ export function NumberingSection({ draft, update }: SectionProps) {
     <div className="space-y-4">
       <Alert tone="info" title="GST tip" icon={<Sparkles />}>
         Tax invoice numbers should be consecutive, unique per financial year and at most 16
-        characters. The default (business code + date + random) is unique but not consecutive — for
-        strict compliance use a pattern like{" "}
+        characters. The default{" "}
         <code className="rounded bg-surface px-1 font-mono text-foreground">
-          {"{PREFIX}/{FY}/{SEQ:3}"}
+          {DEFAULT_NUMBER_PATTERN}
         </code>{" "}
-        → INV/26-27/001.
+        → INV/26-27/001 does this. Patterns with random digits are unique but not consecutive.
       </Alert>
       {DOC_TYPES.map((t) => {
         const rule = draft.numbering[t];
@@ -363,7 +367,7 @@ export function NumberingSection({ draft, update }: SectionProps) {
         const gst = checkGstNumberRules(example);
         const warning = unknown.length
           ? `Unknown token${unknown.length > 1 ? "s" : ""}: ${unknown.join(", ")}`
-          : t === "tax_invoice" && (gst.tooLong || gst.invalidChars)
+          : t !== "proforma" && t !== "invoice" && (gst.tooLong || gst.invalidChars)
             ? gst.tooLong
               ? `This gives ${example.length} characters — GST allows at most 16.`
               : "Use only letters, digits, “-” and “/”."
@@ -415,14 +419,14 @@ export function NumberingSection({ draft, update }: SectionProps) {
                   variant="ghost"
                   onClick={() => set({ pattern: DEFAULT_NUMBER_PATTERN })}
                 >
-                  Use default (business code + date + random)
+                  Use default GST sequence (…/26-27/001)
                 </Button>
                 <Button
                   size="xs"
                   variant="ghost"
-                  onClick={() => set({ pattern: "{PREFIX}/{FY}/{SEQ:3}" })}
+                  onClick={() => set({ pattern: RANDOM_NUMBER_PATTERN })}
                 >
-                  Use GST sequence (…/26-27/001)
+                  Use business code + date + random
                 </Button>
               </div>
             </CardContent>

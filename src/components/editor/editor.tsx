@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  Ban,
   Braces,
   Copy,
   Download,
@@ -17,15 +18,21 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
 import { exportInvoiceFile } from "@/db/backup";
 import { useDesigns, useSettings } from "@/db/hooks";
-import { deleteInvoice, getInvoice, latestDraft, peekNumber } from "@/db/invoices";
+import { getInvoice, latestDraft, peekNumber } from "@/db/invoices";
 import { DOC_TYPE_META } from "@/lib/documents";
 import { formatMoney } from "@/lib/format";
-import { createInvoice, duplicateInvoice, toInvoiceCustomer } from "@/lib/invoice-factory";
+import {
+  createInvoice,
+  createNoteFromInvoice,
+  duplicateInvoice,
+  toInvoiceCustomer,
+} from "@/lib/invoice-factory";
 import { getDb } from "@/db/db";
-import { DOC_TYPES, type AppSettings, type DocType, type SavedDesign } from "@/lib/schema";
+import { isCreatableDocType, type AppSettings, type SavedDesign } from "@/lib/schema";
 import { cn } from "@/lib/utils";
 import { useEditor } from "@/stores/editor-store";
 import { DesignPanel } from "@/components/design/design-panel";
@@ -33,7 +40,12 @@ import { usePalette } from "@/components/layout/command-palette";
 import { SavedDesigns } from "@/components/design/saved-designs";
 import { StorageBanner } from "@/components/storage/storage-guard";
 import { Button } from "@/components/ui/button";
-import { confirm } from "@/components/ui/confirm";
+import {
+  canCancel,
+  canDelete,
+  confirmCancel,
+  confirmDelete,
+} from "@/components/document-lifecycle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,11 +89,12 @@ export function EditorRoute() {
   const type = params.get("type");
   const from = params.get("from");
   const as = params.get("as");
+  const noteParam = params.get("note");
   const customerParam = params.get("customer");
 
   useEffect(() => {
     if (!settings || !designs) return;
-    const key = `${id}|${wantsNew}|${type}|${from}|${as}|${customerParam}`;
+    const key = `${id}|${wantsNew}|${type}|${from}|${as}|${noteParam}|${customerParam}`;
     // Our own replaceState after the first save points at the open document — nothing to do.
     if (id && id === useEditor.getState().invoice?.id) return;
     if (loading.current === key) return;
@@ -90,13 +103,26 @@ export function EditorRoute() {
     void (async () => {
       await flushSave();
       setMissing(false);
-      const docType = DOC_TYPES.includes(type as DocType) ? (type as DocType) : undefined;
+      const docType = isCreatableDocType(type) ? type : undefined;
       const now = new Date();
 
+      if (from && (noteParam === "credit_note" || noteParam === "debit_note")) {
+        // Credit/debit notes are always created from an invoice.
+        const source = await getInvoice(from);
+        if (!source) return setMissing(true);
+        const generated = await peekNumber(settings, noteParam, now, source.seller.name);
+        useEditor
+          .getState()
+          .load(createNoteFromInvoice(source, noteParam, settings, generated, now), false, {
+            dirty: true,
+          });
+        void flushSave();
+        return;
+      }
       if (from) {
         const source = await getInvoice(from);
         if (!source) return setMissing(true);
-        const targetType = DOC_TYPES.includes(as as DocType) ? (as as DocType) : source.docType;
+        const targetType = isCreatableDocType(as) ? as : source.docType;
         const generated = await peekNumber(settings, targetType, now, source.seller.name);
         useEditor
           .getState()
@@ -129,7 +155,7 @@ export function EditorRoute() {
       useEditor.getState().load(invoice, false, { dirty: Boolean(customer) });
       if (wantsNew) window.history.replaceState(window.history.state, "", "/invoice");
     })();
-  }, [settings, designs, id, wantsNew, type, from, as, customerParam]);
+  }, [settings, designs, id, wantsNew, type, from, as, noteParam, customerParam]);
 
   if (missing) {
     return (
@@ -343,6 +369,12 @@ function Toolbar({
   const number = useEditor((s) => s.invoice!.number);
   const docType = useEditor((s) => s.invoice!.docType);
   const persisted = useEditor((s) => s.persisted);
+  const lifecycle = useEditor(
+    useShallow((s) => ({
+      deletable: canDelete(s.invoice!),
+      cancellable: canCancel(s.invoice!),
+    })),
+  );
   const { settings } = useEditorContext();
   const total = useEditor((s) => s.totals?.grandTotal ?? "0");
   const currency = useEditor((s) => s.invoice!.currency);
@@ -372,18 +404,17 @@ function Toolbar({
   const remove = async () => {
     const inv = useEditor.getState().invoice;
     if (!inv) return;
-    const ok = await confirm({
-      title: `Delete ${inv.number || "this document"}?`,
-      description:
-        "It will be removed from this browser. Downloaded PDFs and invoice files are not affected.",
-      confirmLabel: "Delete",
-      tone: "danger",
-    });
-    if (!ok) return;
-    if (useEditor.getState().persisted) await deleteInvoice(inv.id);
+    if (!(await confirmDelete(inv, useEditor.getState().persisted))) return;
     useEditor.getState().clear();
-    toast.success("Document deleted");
     onNavigate("/history");
+  };
+
+  const cancelDoc = async () => {
+    await flushSave();
+    const inv = useEditor.getState().invoice;
+    if (!inv) return;
+    const saved = await confirmCancel(inv);
+    if (saved) useEditor.getState().markSaved(useEditor.getState().savedRevision, saved);
   };
 
   return (
@@ -466,10 +497,16 @@ function Toolbar({
               <DropdownMenuItem icon={<Braces />} onSelect={() => void exportFile()}>
                 Save invoice file (.json)
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem icon={<Trash />} tone="danger" onSelect={() => void remove()}>
-                Delete
-              </DropdownMenuItem>
+              {(lifecycle.deletable || lifecycle.cancellable) && <DropdownMenuSeparator />}
+              {lifecycle.deletable ? (
+                <DropdownMenuItem icon={<Trash />} tone="danger" onSelect={() => void remove()}>
+                  Delete
+                </DropdownMenuItem>
+              ) : lifecycle.cancellable ? (
+                <DropdownMenuItem icon={<Ban />} tone="danger" onSelect={() => void cancelDoc()}>
+                  Cancel document
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
           {isDesktop && (

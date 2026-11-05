@@ -15,7 +15,7 @@ import { useSettings } from "@/db/hooks";
 import { useLockStore } from "@/stores/lock-store";
 import { useMounted } from "@/hooks/use-mounted";
 import { DOC_TYPE_META } from "@/lib/documents";
-import { DOC_TYPES } from "@/lib/schema";
+import { CREATABLE_DOC_TYPES } from "@/lib/schema";
 import { backupNow, openInvoiceFile, startRestore } from "@/components/storage/file-actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -171,7 +171,7 @@ function NewDocumentMenu() {
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-72">
           <DropdownMenuLabel>New document</DropdownMenuLabel>
-          {DOC_TYPES.map((t) => (
+          {CREATABLE_DOC_TYPES.map((t) => (
             <DropdownMenuItem key={t} asChild>
               <Link href={`/invoice?new=1&type=${t}`} className="!items-start">
                 <span>

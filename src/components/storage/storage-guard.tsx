@@ -7,6 +7,7 @@ import {
   FolderOpen,
   HardDriveDownload,
   HardDriveUpload,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -73,6 +74,30 @@ export function StorageBanner() {
     typeof window === "undefined" ? {} : readDismissed(),
   );
   const [now] = useState(() => Date.now());
+
+  // Shown before anything else: this tab can no longer read or write safely.
+  if (status.versionChanged || status.upgradeBlocked) {
+    return (
+      <Alert
+        tone="warning"
+        title={
+          status.versionChanged
+            ? "Another tab updated the app — reload"
+            : "Close other tabs of this app to finish updating"
+        }
+        icon={<RefreshCw />}
+        action={
+          <Button size="sm" variant="secondary" onClick={() => window.location.reload()}>
+            Reload
+          </Button>
+        }
+      >
+        {status.versionChanged
+          ? "This tab is paused so nothing gets out of sync. Reload to continue — your saved data is safe."
+          : "An older version of this app is open in another tab. Close it (or reload it), then reload here."}
+      </Alert>
+    );
+  }
 
   if (!status.ready || !settings || !invoices) return null;
   const isDismissed = (key: string) => (dismissed[key] ?? 0) > now;

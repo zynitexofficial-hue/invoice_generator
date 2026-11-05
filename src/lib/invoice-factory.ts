@@ -12,6 +12,7 @@ import {
   type InvoiceCustomer,
   type InvoiceDesign,
   type LineItem,
+  type NoteDocType,
   type SavedDesign,
 } from "@/lib/schema";
 import { getTemplateMeta } from "@/lib/templates-meta";
@@ -94,6 +95,8 @@ export function toInvoiceCustomer(c: Customer): InvoiceCustomer {
     phone: c.phone,
     billingAddress: c.billingAddress,
     shippingAddress: c.shippingAddress,
+    city: c.city,
+    pincode: c.pincode,
     stateCode: c.stateCode,
     country: c.country,
     gstin: c.gstin,
@@ -201,6 +204,11 @@ export function duplicateInvoice(
     lines: source.lines.map((l) => ({ ...structuredClone(l), id: newId() })),
     payment: { amountReceived: "", date: "", mode: "", note: "" },
     downloadedAt: "",
+    issuedAt: "",
+    status: "active",
+    cancelledAt: "",
+    cancelReason: "",
+    eInvoice: { irn: "", ackNo: "", ackDate: "", status: "not_applicable" },
     createdAt: stamp,
     updatedAt: stamp,
   };
@@ -210,4 +218,61 @@ export function duplicateInvoice(
     // Converting keeps the customer/currency of the quote.
     currency: base.currency,
   };
+}
+
+/**
+ * A credit or debit note against an issued invoice: copies the parties, place
+ * of supply, tax settings, currency and lines (new ids), and records the
+ * original invoice. Amounts stay positive; returns subtract (credit) or add
+ * (debit) them. Payment is cleared — notes carry no payment.
+ */
+export function createNoteFromInvoice(
+  original: Invoice,
+  kind: NoteDocType,
+  settings: AppSettings,
+  generated: GeneratedNumber,
+  now = new Date(),
+): Invoice {
+  const stamp = now.toISOString();
+  const invoiceDate = todayISO(now);
+  return invoiceSchema.parse({
+    id: newId(),
+    docType: kind,
+    docTitle: titleFor(kind, settings),
+    number: generated.number,
+    autoNumber: generated.autoNumber,
+    seqCommitted: false,
+    invoiceDate,
+    dueDate: "",
+    currency: original.currency,
+    seller: structuredClone(original.seller),
+    customer: structuredClone(original.customer),
+    placeOfSupply: original.placeOfSupply,
+    lines: original.lines.map((l) => ({ ...structuredClone(l), id: newId() })),
+    invoiceDiscount: structuredClone(original.invoiceDiscount),
+    pricesIncludeGst: original.pricesIncludeGst,
+    gstMode: original.gstMode,
+    supplyType: original.supplyType,
+    roundOff: original.roundOff,
+    payment: {},
+    paymentSchedule: [],
+    notes: "",
+    terms: "",
+    paymentInstructions: "",
+    footer: original.footer,
+    declaration: "",
+    design: structuredClone(original.design),
+    supplyNature: original.supplyNature,
+    reverseCharge: original.reverseCharge,
+    sez: structuredClone(original.sez),
+    exportDetails: structuredClone(original.exportDetails),
+    note: {
+      reason: "",
+      originalInvoiceId: original.id,
+      originalInvoiceNumber: original.number,
+      originalInvoiceDate: original.invoiceDate,
+    },
+    createdAt: stamp,
+    updatedAt: stamp,
+  });
 }

@@ -22,7 +22,7 @@ import { useEffect, type ReactNode } from "react";
 import { create } from "zustand";
 import { useInvoices, useSettings } from "@/db/hooks";
 import { DOC_TYPE_META } from "@/lib/documents";
-import { DOC_TYPES } from "@/lib/schema";
+import { CREATABLE_DOC_TYPES } from "@/lib/schema";
 import { useInstall } from "@/stores/install";
 import { useLockStore } from "@/stores/lock-store";
 import { backupNow, openInvoiceFile, startRestore } from "@/components/storage/file-actions";
@@ -120,7 +120,7 @@ export function CommandPalette() {
               </Command.Empty>
 
               <Group heading="Create">
-                {DOC_TYPES.map((t) => (
+                {CREATABLE_DOC_TYPES.map((t) => (
                   <Item
                     key={t}
                     icon={<FileText />}

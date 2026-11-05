@@ -1,10 +1,30 @@
 import type { TaxKind } from "@/lib/calc/engine";
+import { DOC_TYPE_META } from "@/lib/documents";
 import type { DocType, GstMode, Invoice, SupplyType } from "@/lib/schema";
 import { stateFromGstin } from "./gstin";
 import { OTHER_COUNTRY_CODE, isUtgstTerritory, stateName } from "./states";
 
-export function docTypeHasTax(docType: DocType) {
-  return docType === "tax_invoice" || docType === "proforma";
+/** Export/SEZ facts that decide whether a zero-rated supply carries IGST. */
+export interface ZeroRatedInput {
+  exportType?: Invoice["exportDetails"]["type"];
+  sez?: Pick<Invoice["sez"], "enabled" | "withPayment">;
+}
+
+/**
+ * Whether a document of this type charges GST. The document type decides
+ * (DOC_TYPE_META.hasTax), except for zero-rated supplies: an export carries
+ * IGST only "with payment" (WPAY), and an SEZ supply only with payment.
+ */
+export function docTypeHasTax(docType: DocType, zr: ZeroRatedInput = {}) {
+  if (docType === "export") return zr.exportType === "wpay";
+  if (zr.sez?.enabled && !zr.sez.withPayment) return false;
+  return DOC_TYPE_META[docType].hasTax;
+}
+
+/** True for exports with IGST and SEZ supplies with payment: always IGST. */
+export function isZeroRatedWithPayment(docType: DocType, zr: ZeroRatedInput = {}) {
+  if (docType === "export") return zr.exportType === "wpay";
+  return Boolean(zr.sez?.enabled && zr.sez.withPayment && DOC_TYPE_META[docType].hasTax);
 }
 
 export function isIndia(country: string) {
@@ -28,7 +48,7 @@ export function sellerStateCode(seller: Invoice["seller"]): string {
   return seller.stateCode || stateFromGstin(seller.gstin) || "";
 }
 
-export interface TaxKindInput {
+export interface TaxKindInput extends ZeroRatedInput {
   docType: DocType;
   gstMode: GstMode;
   supplyType: SupplyType;
@@ -42,7 +62,9 @@ export interface TaxKindInput {
  * intra-state (the common local-business case); validation warns about it.
  */
 export function determineTaxKind(input: TaxKindInput): TaxKind {
-  if (!docTypeHasTax(input.docType)) return "none";
+  if (!docTypeHasTax(input.docType, input)) return "none";
+  // Exports and SEZ supplies with payment are inter-state supplies (IGST).
+  if (isZeroRatedWithPayment(input.docType, input)) return "inter";
   if (input.gstMode === "single") return "single";
   if (input.supplyType === "intra") return "intra";
   if (input.supplyType === "inter") return "inter";
@@ -57,6 +79,18 @@ export function taxKindForInvoice(invoice: Invoice): TaxKind {
     supplyType: invoice.supplyType,
     sellerState: sellerStateCode(invoice.seller),
     placeOfSupply: resolvePlaceOfSupply(invoice),
+    exportType: invoice.exportDetails.type,
+    sez: invoice.sez,
+  });
+}
+
+/** Whether this invoice charges GST (type plus export/SEZ details). */
+export function invoiceHasTax(
+  invoice: Pick<Invoice, "docType" | "exportDetails" | "sez">,
+): boolean {
+  return docTypeHasTax(invoice.docType, {
+    exportType: invoice.exportDetails.type,
+    sez: invoice.sez,
   });
 }
 

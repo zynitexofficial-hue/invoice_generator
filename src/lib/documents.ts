@@ -56,6 +56,24 @@ export const DOC_TYPE_META: Record<DocType, DocTypeMeta> = {
     hasPayment: true,
     dueLabel: "Due date",
   },
+  credit_note: {
+    label: "Credit Note",
+    shortLabel: "Credit Note",
+    description: "Reduces the value of an issued invoice (returns, discounts, corrections).",
+    defaultTitle: "Credit Note",
+    hasTax: true,
+    hasPayment: false,
+    dueLabel: "Due date",
+  },
+  debit_note: {
+    label: "Debit Note",
+    shortLabel: "Debit Note",
+    description: "Increases the value of an issued invoice (extra charges, corrections).",
+    defaultTitle: "Debit Note",
+    hasTax: true,
+    hasPayment: false,
+    dueLabel: "Due date",
+  },
 };
 
 export const PROFORMA_TITLES = ["Quotation", "Proforma Invoice", "Estimate"] as const;

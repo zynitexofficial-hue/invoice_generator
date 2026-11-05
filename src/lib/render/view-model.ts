@@ -15,7 +15,12 @@ import {
   stateTaxLabel,
 } from "@/lib/gst/tax";
 import { toDec } from "@/lib/money";
-import type { DateFormatId, DesignCustomization, Invoice } from "@/lib/schema";
+import {
+  isNoteDocType,
+  type DateFormatId,
+  type DesignCustomization,
+  type Invoice,
+} from "@/lib/schema";
 import { resolvePaymentQr } from "@/lib/payment-qr";
 
 export type ColumnKey = "index" | "item" | "hsn" | "qty" | "price" | "discount" | "tax" | "amount";
@@ -158,6 +163,10 @@ function numberLabel(invoice: Invoice) {
   switch (invoice.docType) {
     case "bill_of_supply":
       return "Bill No.";
+    case "credit_note":
+      return "Credit Note No.";
+    case "debit_note":
+      return "Debit Note No.";
     case "proforma": {
       const title = invoice.docTitle.toLowerCase();
       if (title.includes("estimate")) return "Estimate No.";
@@ -226,6 +235,12 @@ export function buildViewModel(
   ];
   if (invoice.dueDate) metaRows.push({ label: meta.dueLabel, value: date(invoice.dueDate) });
   if (placeOfSupply) metaRows.push({ label: "Place of supply", value: placeOfSupply });
+  if (isNoteDocType(invoice.docType) && invoice.note.originalInvoiceNumber.trim()) {
+    const original = invoice.note.originalInvoiceDate
+      ? `${invoice.note.originalInvoiceNumber.trim()} dated ${date(invoice.note.originalInvoiceDate)}`
+      : invoice.note.originalInvoiceNumber.trim();
+    metaRows.push({ label: "Against invoice", value: original });
+  }
   if (invoice.referenceNo.trim())
     metaRows.push({ label: "Reference", value: invoice.referenceNo.trim() });
   if (invoice.poNo.trim()) metaRows.push({ label: "PO No.", value: invoice.poNo.trim() });

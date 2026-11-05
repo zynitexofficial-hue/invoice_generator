@@ -23,9 +23,9 @@ import { useInvoices, useSettings } from "@/db/hooks";
 import { DOC_TYPE_META } from "@/lib/documents";
 import { formatDate, relativeTime, todayISO } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
-import { displayStatus } from "@/lib/invoice-calc";
+import { displayStatus, isDraft } from "@/lib/invoice-calc";
 import { toDec, ZERO, type Dec } from "@/lib/money";
-import { DOC_TYPES, type Invoice } from "@/lib/schema";
+import { CREATABLE_DOC_TYPES, type Invoice } from "@/lib/schema";
 import { cn } from "@/lib/utils";
 import { Page } from "@/components/layout/page";
 import { OpenInvoiceFileButton } from "@/components/open-invoice-file";
@@ -54,11 +54,11 @@ export function HomeView() {
     >();
     let drafts = 0;
     for (const inv of invoices) {
-      if (!inv.downloadedAt) {
+      if (isDraft(inv)) {
         drafts++;
         continue;
       }
-      if (!DOC_TYPE_META[inv.docType].hasPayment) continue;
+      if (inv.status === "cancelled" || !DOC_TYPE_META[inv.docType].hasPayment) continue;
       const entry = byCurrency.get(inv.currency) ?? {
         invoiced: ZERO,
         received: ZERO,
@@ -84,7 +84,7 @@ export function HomeView() {
   if (!settings || !invoices || !stats) return <HomeSkeleton />;
 
   const name = settings.profile.name.trim();
-  const draft = invoices.find((i) => !i.downloadedAt);
+  const draft = invoices.find((i) => isDraft(i));
   const recent = invoices.slice(0, 6);
   const [primaryCurrency, primary] = stats.currencies[0] ?? ["INR", null];
   const grouping = settings.formats.numberGrouping;
@@ -282,7 +282,7 @@ function NewDocumentButton() {
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-72">
           <DropdownMenuLabel>New document</DropdownMenuLabel>
-          {DOC_TYPES.map((t) => (
+          {CREATABLE_DOC_TYPES.map((t) => (
             <DropdownMenuItem key={t} asChild>
               <Link href={`/invoice?new=1&type=${t}`} className="!items-start">
                 <span>
@@ -376,7 +376,7 @@ function RecentRow({
           <span className="truncate text-sm font-medium">
             {inv.customer.name || inv.customer.company || "No customer"}
           </span>
-          <StatusBadge status={displayStatus(inv, today)} />
+          <StatusBadge status={displayStatus(inv, today)} docType={inv.docType} />
         </div>
         <div className="truncate text-xs text-muted-foreground">
           {inv.number} · {DOC_TYPE_META[inv.docType].shortLabel} ·{" "}

@@ -3,6 +3,7 @@ import {
   businessCode,
   checkGstNumberRules,
   DEFAULT_NUMBER_PATTERN,
+  RANDOM_NUMBER_PATTERN,
   patternUsesRandom,
   randomDigits,
   counterKey,
@@ -68,8 +69,16 @@ describe("checkGstNumberRules", () => {
 
 describe("business code and random tokens", () => {
   const fixed = () => "4827";
-  it("builds the default pattern within GST's 16 characters", () => {
-    const n = formatDocumentNumber(DEFAULT_NUMBER_PATTERN, {
+  it("defaults to a consecutive FY series within GST's 16 characters", () => {
+    const n = formatDocumentNumber(DEFAULT_NUMBER_PATTERN, { prefix: "INV", date: oct22, seq: 1 });
+    expect(n).toBe("INV/26-27/001");
+    expect(checkGstNumberRules(n)).toEqual({ tooLong: false, invalidChars: false });
+    expect(patternUsesSeq(DEFAULT_NUMBER_PATTERN)).toBe(true);
+    expect(patternUsesRandom(DEFAULT_NUMBER_PATTERN)).toBe(false);
+  });
+
+  it("builds the random pattern within GST's 16 characters", () => {
+    const n = formatDocumentNumber(RANDOM_NUMBER_PATTERN, {
       prefix: "INV",
       date: oct22,
       business: "Zynitex",
@@ -88,6 +97,6 @@ describe("business code and random tokens", () => {
   it("produces random digits of the requested length", () => {
     expect(randomDigits(4)).toMatch(/^\d{4}$/);
     expect(formatDocumentNumber("{RAND:6}", { prefix: "", date: oct22 })).toMatch(/^\d{6}$/);
-    expect(patternUsesRandom(DEFAULT_NUMBER_PATTERN)).toBe(true);
+    expect(patternUsesRandom(RANDOM_NUMBER_PATTERN)).toBe(true);
   });
 });

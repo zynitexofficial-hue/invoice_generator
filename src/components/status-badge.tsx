@@ -1,4 +1,5 @@
 import type { DisplayStatus } from "@/lib/invoice-calc";
+import type { DocType } from "@/lib/schema";
 import { Badge } from "@/components/ui/badge";
 
 const MAP: Record<
@@ -11,19 +12,30 @@ const MAP: Record<
   paid: { label: "Paid", tone: "success" },
   overdue: { label: "Overdue", tone: "danger" },
   quote: { label: "Sent", tone: "primary" },
+  cancelled: { label: "Cancelled", tone: "danger" },
+  note: { label: "Credit/debit note", tone: "primary" },
 };
 
 export function StatusBadge({
   status,
   size = "sm",
+  docType,
 }: {
   status: DisplayStatus;
   size?: "sm" | "md";
+  /** Lets a note say "Credit note" / "Debit note" instead of the generic label. */
+  docType?: DocType;
 }) {
   const s = MAP[status];
+  const label =
+    status === "note" && docType === "credit_note"
+      ? "Credit note"
+      : status === "note" && docType === "debit_note"
+        ? "Debit note"
+        : s.label;
   return (
     <Badge tone={s.tone} size={size} dot>
-      {s.label}
+      {label}
     </Badge>
   );
 }

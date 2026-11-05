@@ -62,6 +62,20 @@ describe("determineTaxKind", () => {
     expect(determineTaxKind({ ...base, docType: "proforma", placeOfSupply: "29" })).toBe("inter");
   });
 
+  it("charges IGST on exports with payment and SEZ supplies with payment", () => {
+    expect(determineTaxKind({ ...base, docType: "export", exportType: "wopay" })).toBe("none");
+    expect(determineTaxKind({ ...base, docType: "export", exportType: "wpay" })).toBe("inter");
+    expect(
+      determineTaxKind({ ...base, gstMode: "single", sez: { enabled: true, withPayment: true } }),
+    ).toBe("inter");
+    expect(determineTaxKind({ ...base, sez: { enabled: true, withPayment: false } })).toBe("none");
+  });
+
+  it("taxes credit and debit notes like invoices", () => {
+    expect(determineTaxKind({ ...base, docType: "credit_note" })).toBe("intra");
+    expect(determineTaxKind({ ...base, docType: "debit_note", placeOfSupply: "29" })).toBe("inter");
+  });
+
   it("assumes intra-state when a state is unknown", () => {
     expect(determineTaxKind({ ...base, sellerState: "" })).toBe("intra");
   });

@@ -19,6 +19,10 @@ interface StorageStatusState {
   integrity: Integrity;
   integrityDetail: string;
   error: StorageError | null;
+  /** Another tab upgraded (or deleted) the database; this tab must reload. */
+  versionChanged: boolean;
+  /** Our database upgrade is waiting for another (older) tab to close. */
+  upgradeBlocked: boolean;
   set: (partial: Partial<Omit<StorageStatusState, "set" | "reportError" | "clearError">>) => void;
   reportError: (message: string, detail?: string) => void;
   clearError: () => void;
@@ -34,6 +38,8 @@ export const useStorageStatus = create<StorageStatusState>((set) => ({
   integrity: "ok",
   integrityDetail: "",
   error: null,
+  versionChanged: false,
+  upgradeBlocked: false,
   set: (partial) => set(partial),
   reportError: (message, detail) => set({ error: { message, detail, at: Date.now() } }),
   clearError: () => set({ error: null }),

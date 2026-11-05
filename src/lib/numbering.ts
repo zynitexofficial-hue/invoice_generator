@@ -5,8 +5,14 @@ export interface NumberToken {
   description: string;
 }
 
-/** Default pattern: business code + date + random digits, e.g. ZYNI-261022-4827 (16 chars). */
-export const DEFAULT_NUMBER_PATTERN = "{BIZ}-{YY}{MM}{DD}-{RAND:4}";
+/**
+ * Default pattern for new settings: a consecutive series per document type and
+ * financial year, e.g. INV/26-27/001 (Rule 46: consecutive, ≤16 chars).
+ * Patterns already stored by existing users are never rewritten.
+ */
+export const DEFAULT_NUMBER_PATTERN = "{PREFIX}/{FY}/{SEQ:3}";
+/** The previous default: business code + date + random digits, e.g. ZYNI-261022-4827. */
+export const RANDOM_NUMBER_PATTERN = "{BIZ}-{YY}{MM}{DD}-{RAND:4}";
 /** The earlier default — settings still using it are upgraded automatically. */
 export const LEGACY_NUMBER_PATTERN = "{PREFIX}-{YY}{MM}{DD}-{HH}{mm}";
 

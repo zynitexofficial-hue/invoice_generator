@@ -3,6 +3,7 @@
 import {
   ArrowDown,
   ArrowUp,
+  Ban,
   Braces,
   ChevronLeft,
   ChevronRight,
@@ -25,7 +26,12 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { exportInvoiceFile } from "@/db/backup";
 import { useInvoices, useSettings } from "@/db/hooks";
-import { deleteInvoice } from "@/db/invoices";
+import {
+  canCancel,
+  canDelete,
+  confirmCancel,
+  confirmDelete,
+} from "@/components/document-lifecycle";
 import { DOC_TYPE_META } from "@/lib/documents";
 import { formatDate, todayISO } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
@@ -39,7 +45,6 @@ import { StatusBadge, STATUS_LABELS } from "@/components/status-badge";
 import { printInvoice } from "@/components/editor/use-download";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { confirm } from "@/components/ui/confirm";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
   DropdownMenu,
@@ -227,7 +232,16 @@ export function HistoryView() {
                 options={[
                   { value: "all", label: "Any status" },
                   ...(
-                    ["draft", "unpaid", "partial", "paid", "overdue", "quote"] as DisplayStatus[]
+                    [
+                      "draft",
+                      "unpaid",
+                      "partial",
+                      "paid",
+                      "overdue",
+                      "quote",
+                      "note",
+                      "cancelled",
+                    ] as DisplayStatus[]
                   ).map((s) => ({
                     value: s,
                     label: s === "quote" ? "Sent quotation" : STATUS_LABELS[s],
@@ -367,7 +381,10 @@ export function HistoryView() {
                                 : "—"}
                             </td>
                             <td className="px-4 py-3">
-                              <StatusBadge status={displayStatus(inv, today)} />
+                              <StatusBadge
+                                status={displayStatus(inv, today)}
+                                docType={inv.docType}
+                              />
                             </td>
                             <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
                               <RowActions invoice={inv} settings={settings} onPay={setPaying} />
@@ -396,7 +413,7 @@ export function HistoryView() {
                           {inv.number} · {formatDate(inv.invoiceDate, settings.formats.dateFormat)}
                         </div>
                         <div className="mt-2 flex items-center gap-2">
-                          <StatusBadge status={displayStatus(inv, today)} />
+                          <StatusBadge status={displayStatus(inv, today)} docType={inv.docType} />
                           <span className="text-sm font-semibold tabular-nums">
                             {formatMoney(
                               inv.summary.grandTotal,
@@ -522,7 +539,7 @@ function RowActions({
         >
           Download PDF
         </DropdownMenuItem>
-        {meta.hasPayment && (
+        {meta.hasPayment && inv.status !== "cancelled" && (
           <DropdownMenuItem icon={<Wallet />} onSelect={() => onPay(inv)}>
             Record payment
           </DropdownMenuItem>
@@ -547,26 +564,16 @@ function RowActions({
         >
           Save invoice file
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          icon={<Trash />}
-          tone="danger"
-          onSelect={async () => {
-            const ok = await confirm({
-              title: `Delete ${inv.number || "this document"}?`,
-              description:
-                "It will be removed from this browser. PDFs and invoice files you downloaded are not affected.",
-              confirmLabel: "Delete",
-              tone: "danger",
-            });
-            if (ok) {
-              await deleteInvoice(inv.id);
-              toast.success("Document deleted");
-            }
-          }}
-        >
-          Delete
-        </DropdownMenuItem>
+        {(canDelete(inv) || canCancel(inv)) && <DropdownMenuSeparator />}
+        {canDelete(inv) ? (
+          <DropdownMenuItem icon={<Trash />} tone="danger" onSelect={() => void confirmDelete(inv)}>
+            Delete
+          </DropdownMenuItem>
+        ) : canCancel(inv) ? (
+          <DropdownMenuItem icon={<Ban />} tone="danger" onSelect={() => void confirmCancel(inv)}>
+            Cancel document
+          </DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
