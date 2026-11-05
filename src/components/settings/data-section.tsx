@@ -20,13 +20,18 @@ import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useStorageStatus } from "@/stores/storage-status";
 import { backupNow, startRestore } from "@/components/storage/file-actions";
+import { setSessionPassphrase } from "@/lib/auto-backup";
+import { AutoBackupCard } from "./auto-backup-card";
+import { PrivacyNoticeCard } from "./privacy-notice-card";
 import { ProtectStorage } from "./protect-storage";
+import { RetentionCard } from "./retention-card";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { confirm } from "@/components/ui/confirm";
 import { Select } from "@/components/ui/select";
+import { SwitchRow } from "@/components/ui/switch";
 
 export function DataSection() {
   const status = useStorageStatus();
@@ -121,6 +126,22 @@ export function DataSection() {
             </div>
           </div>
           {settings && (
+            <SwitchRow
+              label="Encrypt backups with a passphrase"
+              description={
+                settings.backup.encrypt
+                  ? "On. You'll be asked for a passphrase each time you back up — it's never saved. If you lose it, that backup can't be opened by anyone."
+                  : "Recommended if you keep backups in cloud storage, email or a pen drive. The passphrase is never saved, and a lost passphrase can't be recovered."
+              }
+              checked={settings.backup.encrypt}
+              onCheckedChange={(encrypt) => {
+                if (!encrypt) setSessionPassphrase(null);
+                void updateSettings((s) => ({ ...s, backup: { ...s.backup, encrypt } }));
+                toast.success(encrypt ? "Backups will be encrypted" : "Backups won't be encrypted");
+              }}
+            />
+          )}
+          {settings && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm">
                 <div className="font-medium">Backup reminder</div>
@@ -148,6 +169,10 @@ export function DataSection() {
           )}
         </CardContent>
       </Card>
+
+      {settings && <AutoBackupCard settings={settings} />}
+      {settings && <RetentionCard settings={settings} />}
+      {settings && <PrivacyNoticeCard settings={settings} />}
 
       <Card className="border-danger/30">
         <CardHeader title="Danger zone" icon={<TriangleAlert />} />

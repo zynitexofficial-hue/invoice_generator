@@ -32,6 +32,7 @@ import {
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { BreachChecklist } from "./breach-checklist";
 import type { SettingsUpdate } from "./use-settings-draft";
 import type { AppSettings } from "@/lib/schema";
 
@@ -162,11 +163,7 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
 
     setIsSubmittingChange(true);
     try {
-      const isCurrentValid = await verifyPin(
-        currentPin,
-        security.pinHash,
-        security.pinSalt,
-      );
+      const isCurrentValid = await verifyPin(currentPin, security.pinHash, security.pinSalt);
 
       if (!isCurrentValid) {
         toast.error("Current PIN is incorrect.");
@@ -216,11 +213,7 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
 
     setIsSubmittingDisable(true);
     try {
-      const isCurrentValid = await verifyPin(
-        disableCurrentPin,
-        security.pinHash,
-        security.pinSalt,
-      );
+      const isCurrentValid = await verifyPin(disableCurrentPin, security.pinHash, security.pinSalt);
 
       if (!isCurrentValid) {
         toast.error("Current PIN is incorrect.");
@@ -277,6 +270,11 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
           }
         />
         <CardContent className="space-y-5">
+          <Alert tone="info" title="PIN lock is a screen lock — it doesn't encrypt your data.">
+            It stops someone casually opening the app on this device. To protect your records, turn
+            on encrypted backups (Settings → Data &amp; backup) and use your device&apos;s login
+            password and disk encryption.
+          </Alert>
           {!isPinEnabled ? (
             /* Disabled / Not Set State */
             <div className="space-y-4">
@@ -290,9 +288,9 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
                       Protect your panel from unauthorized access
                     </p>
                     <p className="text-subtle-foreground">
-                      Setting a PIN is completely optional. Once enabled, anyone opening this
-                      panel on this browser will be asked to enter your 6-digit PIN on a full-screen
-                      lock display before accessing any data.
+                      Setting a PIN is completely optional. Once enabled, anyone opening this panel
+                      on this browser will be asked to enter your 6-digit PIN on a full-screen lock
+                      display before accessing any data.
                     </p>
                   </div>
                 </div>
@@ -341,7 +339,7 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
                   <Button
                     variant="secondary"
                     onClick={() => lock()}
-                    className="w-full gap-2 justify-center"
+                    className="w-full justify-center gap-2"
                   >
                     <Lock className="size-4" />
                     <span>Lock Panel Now</span>
@@ -369,11 +367,13 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
       </Card>
 
       {/* Offline Safety Reminder */}
-      <Alert tone="warning" title="Always maintain an offline backup">
-        Because this application is 100% private and runs locally in your browser with no central
-        servers, keeping regular `.json` backups from <strong>Settings → Data & backup</strong> ensures
-        you can always restore your records if a device is lost or damaged.
+      <Alert tone="warning" title="Always keep a backup">
+        Your records live only in this browser. Regular backups from{" "}
+        <strong>Settings → Data &amp; backup</strong> — encrypted, ideally — let you restore them if
+        this device is lost or damaged.
       </Alert>
+
+      <BreachChecklist />
 
       {/* --- Dialog: Set Up PIN --- */}
       <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
@@ -386,16 +386,18 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
             {/* Crucial Permanent Warning Banner */}
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-foreground">
               <div className="flex items-start gap-2.5">
-                <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
                 <div className="space-y-1">
                   <strong className="block font-semibold text-amber-700 dark:text-amber-300">
                     Important: No Way to Reset If Forgotten!
                   </strong>
                   <p className="leading-relaxed text-subtle-foreground">
-                    All your invoice data is stored <strong>strictly locally inside this browser</strong>.
-                    There are <strong>no online accounts, no reset emails, and no recovery keys</strong>.
-                    If you forget your 6-digit PIN, <strong>there is absolutely NO way to reset it</strong> and
-                    you will be locked out of this browser&apos;s data.
+                    All your invoice data is stored{" "}
+                    <strong>strictly locally inside this browser</strong>. There are{" "}
+                    <strong>no online accounts, no reset emails, and no recovery keys</strong>. If
+                    you forget your 6-digit PIN,{" "}
+                    <strong>there is absolutely NO way to reset it</strong> and you will be locked
+                    out of this browser&apos;s data.
                   </p>
                 </div>
               </div>
@@ -424,7 +426,7 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
                   placeholder="••••••"
                   value={setupPin}
                   onChange={(e) => setSetupPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="tracking-widest font-mono text-center text-lg"
+                  className="text-center font-mono text-lg tracking-widest"
                   autoFocus
                 />
               </Field>
@@ -448,21 +450,22 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
                   onChange={(e) =>
                     setSetupConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6))
                   }
-                  className="tracking-widest font-mono text-center text-lg"
+                  className="text-center font-mono text-lg tracking-widest"
                 />
               </Field>
 
               {/* Mandatory User Acknowledgment Checkbox */}
-              <div className="rounded-lg border border-border bg-surface-2/50 p-3 mt-2">
-                <label className="flex items-start gap-2.5 cursor-pointer text-xs leading-snug">
+              <div className="mt-2 rounded-lg border border-border bg-surface-2/50 p-3">
+                <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-snug">
                   <Checkbox
                     checked={acknowledged}
                     onCheckedChange={(checked) => setAcknowledged(Boolean(checked))}
                     className="mt-0.5"
                   />
                   <span className="font-medium text-foreground">
-                    I understand that if I forget my PIN, <u>there is NO way to reset or recover it</u>,
-                    and I am responsible for remembering it.
+                    I understand that if I forget my PIN,{" "}
+                    <u>there is NO way to reset or recover it</u>, and I am responsible for
+                    remembering it.
                   </span>
                 </label>
               </div>
@@ -507,12 +510,12 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
                 placeholder="••••••"
                 value={currentPin}
                 onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                className="tracking-widest font-mono text-center text-lg"
+                className="text-center font-mono text-lg tracking-widest"
                 autoFocus
               />
             </Field>
 
-            <div className="border-t border-border pt-3 space-y-3">
+            <div className="space-y-3 border-t border-border pt-3">
               <Field
                 label="New 6-Digit PIN"
                 hint="Numbers only (0–9), exactly 6 digits"
@@ -535,7 +538,7 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
                   placeholder="••••••"
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="tracking-widest font-mono text-center text-lg"
+                  className="text-center font-mono text-lg tracking-widest"
                 />
               </Field>
 
@@ -555,15 +558,13 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
                   maxLength={6}
                   placeholder="••••••"
                   value={confirmNewPin}
-                  onChange={(e) =>
-                    setConfirmNewPin(e.target.value.replace(/\D/g, "").slice(0, 6))
-                  }
-                  className="tracking-widest font-mono text-center text-lg"
+                  onChange={(e) => setConfirmNewPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="text-center font-mono text-lg tracking-widest"
                 />
               </Field>
 
-              <div className="rounded-lg border border-border bg-surface-2/50 p-3 mt-2">
-                <label className="flex items-start gap-2.5 cursor-pointer text-xs leading-snug">
+              <div className="mt-2 rounded-lg border border-border bg-surface-2/50 p-3">
+                <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-snug">
                   <Checkbox
                     checked={changeAcknowledged}
                     onCheckedChange={(checked) => setChangeAcknowledged(Boolean(checked))}
@@ -620,7 +621,7 @@ export function SecuritySection({ settings: draftSettings, update }: SecuritySec
                 onChange={(e) =>
                   setDisableCurrentPin(e.target.value.replace(/\D/g, "").slice(0, 6))
                 }
-                className="tracking-widest font-mono text-center text-lg"
+                className="text-center font-mono text-lg tracking-widest"
                 autoFocus
               />
             </Field>

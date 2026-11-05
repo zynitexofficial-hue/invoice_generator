@@ -47,6 +47,7 @@ import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { StateSelect } from "@/components/forms/pickers";
+import { CustomerDataMenuItems } from "./customer-data-tools";
 
 type Draft = Partial<Customer> & { name: string };
 
@@ -228,6 +229,8 @@ export function CustomersView() {
                             >
                               Edit
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <CustomerDataMenuItems customer={c} />
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               icon={<Trash />}

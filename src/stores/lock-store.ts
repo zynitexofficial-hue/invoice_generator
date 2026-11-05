@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { takePendingPinUpgrade, upgradedPinHash } from "@/lib/security";
 
 const UNLOCKED_KEY = "ig:pin_unlocked";
 const LAST_ACTIVE_KEY = "ig:pin_last_active";
@@ -83,6 +84,7 @@ export const useLockStore = create<LockState>((set, get) => ({
       failedAttempts: 0,
       lockoutUntil: null,
     });
+    void upgradePinAfterUnlock();
   },
 
   recordFailedAttempt: () => {
@@ -181,3 +183,28 @@ export const useLockStore = create<LockState>((set, get) => ({
     }
   },
 }));
+
+/**
+ * Spec H8: a PIN that was just verified against an old 100k-iteration hash is
+ * re-hashed with 600k iterations. Only applies while the stored hash is still
+ * the one that was verified (so a PIN changed meanwhile is never overwritten).
+ * Best effort: on any failure the old hash simply stays valid.
+ */
+export async function upgradePinAfterUnlock(): Promise<boolean> {
+  const pending = takePendingPinUpgrade();
+  if (!pending) return false;
+  try {
+    const next = await upgradedPinHash(pending.pin, pending.stored);
+    if (!next) return false;
+    const { updateSettings } = await import("@/db/settings");
+    let upgraded = false;
+    await updateSettings((current) => {
+      if (current.security.pinHash !== pending.stored) return current;
+      upgraded = true;
+      return { ...current, security: { ...current.security, ...next } };
+    });
+    return upgraded;
+  } catch {
+    return false;
+  }
+}

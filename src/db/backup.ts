@@ -12,6 +12,12 @@ import {
   type Invoice,
 } from "@/lib/schema";
 import { downloadBlob, safeFileName } from "@/lib/utils";
+import {
+  BackupCryptoError,
+  decryptBackup,
+  encryptBackup,
+  isEncryptedBackup,
+} from "@/lib/backup-crypto";
 import { computeExpenseSummary } from "@/lib/expense-calc";
 import { logAudit } from "./audit";
 import { getDb, type AppDatabase } from "./db";
@@ -157,28 +163,98 @@ export async function buildBackup(): Promise<BackupFile> {
   };
 }
 
-export async function downloadBackup() {
+/** Serialize a backup, encrypting it when a passphrase is given. */
+export async function serializeBackup(backup: BackupFile, passphrase?: string): Promise<string> {
+  const json = JSON.stringify(backup);
+  return passphrase ? encryptBackup(json, passphrase) : json;
+}
+
+export function backupDownloadName(exportedAt: string, encrypted: boolean) {
+  return `invoice-generator-backup-${exportedAt.slice(0, 10)}${encrypted ? "-encrypted" : ""}.json`;
+}
+
+/**
+ * Download a full backup. With a passphrase the file is encrypted (spec H2);
+ * the passphrase itself is never stored.
+ */
+export async function downloadBackup(opts: { passphrase?: string } = {}) {
   const backup = await buildBackup();
-  const stamp = backup.exportedAt.slice(0, 10);
+  const text = await serializeBackup(backup, opts.passphrase);
   downloadBlob(
-    new Blob([JSON.stringify(backup)], { type: "application/json" }),
-    `invoice-generator-backup-${stamp}.json`,
+    new Blob([text], { type: "application/json" }),
+    backupDownloadName(backup.exportedAt, Boolean(opts.passphrase)),
   );
-  await updateSettings((s) => ({ ...s, backup: { ...s.backup, lastBackupAt: backup.exportedAt } }));
+  await markBackedUp(backup.exportedAt);
   return backup;
 }
 
+/** Remember when the last successful backup was made (for reminders). */
+export async function markBackedUp(at: string) {
+  await updateSettings((s) => ({ ...s, backup: { ...s.backup, lastBackupAt: at } }));
+}
+
+/** Parse a plain (unencrypted) backup file. Encrypted files: use parseBackupFile. */
 export function parseBackup(text: string): BackupFile {
-  const raw = parseJson(text);
+  return parseBackupObject(parseJson(text));
+}
+
+function parseBackupObject(raw: unknown): BackupFile {
   if (!raw || typeof raw !== "object") throw new ImportError("This file isn't a backup.");
   const obj = raw as Record<string, unknown>;
   if (obj.format === INVOICE_FILE_FORMAT)
     throw new ImportError("This is a single invoice file. Open it from the History page instead.");
+  if (isEncryptedBackup(obj))
+    throw new ImportError("This backup is encrypted. Enter its passphrase to open it.");
   if (obj.format !== BACKUP_FILE_FORMAT)
     throw new ImportError("This file isn't a backup from this app.");
   const parsed = backupFileSchema.safeParse(migrate(obj, BACKUP_SCHEMA_VERSION, "backup"));
   if (!parsed.success) throw new ImportError(describeZodError(parsed.error));
   return parsed.data;
+}
+
+/** True when the text is a passphrase-encrypted backup (no decryption is attempted). */
+export function isEncryptedBackupText(text: string): boolean {
+  if (text.length > MAX_IMPORT_BYTES) return false;
+  try {
+    return isEncryptedBackup(JSON.parse(text));
+  } catch {
+    return false;
+  }
+}
+
+/** Thrown when the user cancels the passphrase prompt. */
+export class RestoreCancelledError extends Error {
+  constructor() {
+    super("Restore cancelled.");
+    this.name = "RestoreCancelledError";
+  }
+}
+
+/**
+ * Parse any backup file — plain or encrypted. For an encrypted file,
+ * `getPassphrase` is asked for the passphrase (return null to cancel).
+ * A wrong passphrase throws BackupCryptoError (code "wrong_passphrase"); the
+ * caller decides whether to ask again.
+ */
+export async function parseBackupFile(
+  text: string,
+  getPassphrase: () => Promise<string | null> | string | null,
+): Promise<{ backup: BackupFile; encrypted: boolean }> {
+  const raw = parseJson(text);
+  if (!isEncryptedBackup(raw)) return { backup: parseBackupObject(raw), encrypted: false };
+  const passphrase = await getPassphrase();
+  if (passphrase === null) throw new RestoreCancelledError();
+  const plain = await decryptBackup(raw, passphrase);
+  let inner: unknown;
+  try {
+    inner = JSON.parse(plain);
+  } catch {
+    throw new BackupCryptoError(
+      "The decrypted backup isn't valid. The file may be damaged.",
+      "corrupted",
+    );
+  }
+  return { backup: parseBackupObject(inner), encrypted: true };
 }
 
 export interface BackupSummary {
@@ -191,9 +267,10 @@ export interface BackupSummary {
   filings: number;
   hasSettings: boolean;
   exportedAt: string;
+  encrypted: boolean;
 }
 
-export function summarizeBackup(b: BackupFile): BackupSummary {
+export function summarizeBackup(b: BackupFile, encrypted = false): BackupSummary {
   return {
     invoices: b.data.invoices.length,
     customers: b.data.customers.length,
@@ -204,6 +281,7 @@ export function summarizeBackup(b: BackupFile): BackupSummary {
     filings: b.data.filings.length,
     hasSettings: Boolean(b.data.settings),
     exportedAt: b.exportedAt,
+    encrypted,
   };
 }
 
