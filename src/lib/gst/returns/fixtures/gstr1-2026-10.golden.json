@@ -1,0 +1,520 @@
+{
+  "gstin": "27AAPFU0939F1ZV",
+  "fp": "102026",
+  "version": "GST3.2.4",
+  "hash": "hash",
+  "b2b": [
+    {
+      "ctin": "27AABCU9603R1ZN",
+      "inv": [
+        {
+          "inum": "INV/26-27/001",
+          "idt": "01-10-2026",
+          "val": 17700,
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "txval": 15000,
+                "rt": 18,
+                "camt": 1350,
+                "samt": 1350,
+                "csamt": 0
+              }
+            }
+          ]
+        },
+        {
+          "inum": "INV/26-27/003",
+          "idt": "03-10-2026",
+          "val": 10500,
+          "pos": "27",
+          "rchrg": "Y",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "txval": 10000,
+                "rt": 5,
+                "camt": 250,
+                "samt": 250,
+                "csamt": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ctin": "29AAGCB1286Q1Z0",
+      "inv": [
+        {
+          "inum": "INV/26-27/002",
+          "idt": "02-10-2026",
+          "val": 52500,
+          "pos": "29",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "txval": 50000,
+                "rt": 5,
+                "iamt": 2500,
+                "csamt": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ctin": "24AAACS1234A1Z8",
+      "inv": [
+        {
+          "inum": "INV/26-27/004",
+          "idt": "04-10-2026",
+          "val": 200000,
+          "pos": "24",
+          "rchrg": "N",
+          "inv_typ": "SEWOP",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "txval": 200000,
+                "rt": 18,
+                "iamt": 0,
+                "csamt": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "b2cl": [
+    {
+      "pos": "29",
+      "inv": [
+        {
+          "inum": "INV/26-27/005",
+          "idt": "06-10-2026",
+          "val": 177000,
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "txval": 150000,
+                "rt": 18,
+                "iamt": 27000,
+                "csamt": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "b2cs": [
+    {
+      "sply_ty": "INTER",
+      "pos": "07",
+      "typ": "OE",
+      "txval": 20000,
+      "rt": 18,
+      "iamt": 3600,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTRA",
+      "pos": "27",
+      "typ": "OE",
+      "txval": 1001,
+      "rt": 5,
+      "camt": 25.03,
+      "samt": 25.02,
+      "csamt": 0
+    },
+    {
+      "sply_ty": "INTRA",
+      "pos": "27",
+      "typ": "OE",
+      "txval": 800,
+      "rt": 18,
+      "camt": 72,
+      "samt": 72,
+      "csamt": 0
+    }
+  ],
+  "exp": [
+    {
+      "exp_typ": "WPAY",
+      "inv": [
+        {
+          "inum": "EXP/26-27/001",
+          "idt": "13-10-2026",
+          "val": 98235,
+          "sbpcode": "INNSA1",
+          "sbnum": "1234567",
+          "sbdt": "14-10-2026",
+          "itms": [
+            {
+              "txval": 83250,
+              "rt": 18,
+              "iamt": 14985,
+              "csamt": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "exp_typ": "WOPAY",
+      "inv": [
+        {
+          "inum": "EXP/26-27/002",
+          "idt": "14-10-2026",
+          "val": 103086.6,
+          "itms": [
+            {
+              "txval": 103086.6,
+              "rt": 18,
+              "iamt": 0,
+              "csamt": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "cdnr": [
+    {
+      "ctin": "29AAGCB1286Q1Z0",
+      "nt": [
+        {
+          "ntty": "C",
+          "nt_num": "CN/26-27/001",
+          "nt_dt": "20-10-2026",
+          "val": 26250,
+          "pos": "29",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "txval": 25000,
+                "rt": 5,
+                "iamt": 1250,
+                "csamt": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "ctin": "27AABCU9603R1ZN",
+      "nt": [
+        {
+          "ntty": "D",
+          "nt_num": "DN/26-27/001",
+          "nt_dt": "23-10-2026",
+          "val": 1180,
+          "pos": "27",
+          "rchrg": "N",
+          "inv_typ": "R",
+          "itms": [
+            {
+              "num": 1,
+              "itm_det": {
+                "txval": 1000,
+                "rt": 18,
+                "camt": 90,
+                "samt": 90,
+                "csamt": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "cdnur": [
+    {
+      "typ": "B2CL",
+      "ntty": "C",
+      "nt_num": "CN/26-27/002",
+      "nt_dt": "21-10-2026",
+      "val": 11800,
+      "pos": "29",
+      "itms": [
+        {
+          "num": 1,
+          "itm_det": {
+            "txval": 10000,
+            "rt": 18,
+            "iamt": 1800,
+            "csamt": 0
+          }
+        }
+      ]
+    }
+  ],
+  "nil": {
+    "inv": [
+      {
+        "sply_ty": "INTRB2B",
+        "nil_amt": 4000,
+        "expt_amt": 0,
+        "ngsup_amt": 0
+      },
+      {
+        "sply_ty": "INTRAB2C",
+        "nil_amt": 0,
+        "expt_amt": 3000,
+        "ngsup_amt": 0
+      }
+    ]
+  },
+  "hsn": {
+    "hsn_b2b": [
+      {
+        "num": 1,
+        "hsn_sc": "1006",
+        "desc": "Rice (unbranded)",
+        "uqc": "KGS",
+        "qty": 40,
+        "rt": 0,
+        "txval": 4000,
+        "iamt": 0,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      },
+      {
+        "num": 2,
+        "hsn_sc": "42021290",
+        "desc": "Laptop bag",
+        "uqc": "PCS",
+        "qty": 10,
+        "rt": 18,
+        "txval": 11000,
+        "iamt": 0,
+        "camt": 990,
+        "samt": 990,
+        "csamt": 0
+      },
+      {
+        "num": 3,
+        "hsn_sc": "61091000",
+        "desc": "Cotton T-shirts lot",
+        "uqc": "BOX",
+        "qty": 1,
+        "rt": 5,
+        "txval": 25000,
+        "iamt": 1250,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      },
+      {
+        "num": 4,
+        "hsn_sc": "84714190",
+        "desc": "Servers",
+        "uqc": "NOS",
+        "qty": 1,
+        "rt": 18,
+        "txval": 200000,
+        "iamt": 0,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      },
+      {
+        "num": 5,
+        "hsn_sc": "996511",
+        "desc": "Goods transport",
+        "uqc": "OTH",
+        "qty": 1,
+        "rt": 5,
+        "txval": 10000,
+        "iamt": 0,
+        "camt": 250,
+        "samt": 250,
+        "csamt": 0
+      },
+      {
+        "num": 6,
+        "hsn_sc": "998314",
+        "desc": "Installation",
+        "uqc": "OTH",
+        "qty": 1,
+        "rt": 18,
+        "txval": 5000,
+        "iamt": 0,
+        "camt": 450,
+        "samt": 450,
+        "csamt": 0
+      }
+    ],
+    "hsn_b2c": [
+      {
+        "num": 1,
+        "hsn_sc": "0401",
+        "desc": "Fresh milk",
+        "uqc": "LTR",
+        "qty": 3,
+        "rt": 0,
+        "txval": 3000,
+        "iamt": 0,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      },
+      {
+        "num": 2,
+        "hsn_sc": "42021290",
+        "desc": "Leather bags",
+        "uqc": "PCS",
+        "qty": 10,
+        "rt": 18,
+        "txval": 83250,
+        "iamt": 14985,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      },
+      {
+        "num": 3,
+        "hsn_sc": "48201010",
+        "desc": "Notebook",
+        "uqc": "PCS",
+        "qty": 1,
+        "rt": 5,
+        "txval": 1001,
+        "iamt": 0,
+        "camt": 25.03,
+        "samt": 25.02,
+        "csamt": 0
+      },
+      {
+        "num": 4,
+        "hsn_sc": "61091000",
+        "desc": "T-shirt",
+        "uqc": "PCS",
+        "qty": 1,
+        "rt": 18,
+        "txval": 800,
+        "iamt": 0,
+        "camt": 72,
+        "samt": 72,
+        "csamt": 0
+      },
+      {
+        "num": 5,
+        "hsn_sc": "84714190",
+        "desc": "Workstation",
+        "uqc": "NOS",
+        "qty": 1,
+        "rt": 18,
+        "txval": 140000,
+        "iamt": 25200,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      },
+      {
+        "num": 6,
+        "hsn_sc": "85285200",
+        "desc": "Monitor",
+        "uqc": "NOS",
+        "qty": 1,
+        "rt": 18,
+        "txval": 20000,
+        "iamt": 3600,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      },
+      {
+        "num": 7,
+        "hsn_sc": "998314",
+        "desc": "Software consulting",
+        "uqc": "OTH",
+        "qty": 1,
+        "rt": 18,
+        "txval": 103086.6,
+        "iamt": 0,
+        "camt": 0,
+        "samt": 0,
+        "csamt": 0
+      }
+    ]
+  },
+  "doc_issue": {
+    "doc_det": [
+      {
+        "doc_num": 1,
+        "docs": [
+          {
+            "num": 1,
+            "from": "BOS/26-27/001",
+            "to": "BOS/26-27/001",
+            "totnum": 1,
+            "cancel": 0,
+            "net_issue": 1
+          },
+          {
+            "num": 2,
+            "from": "EXP/26-27/001",
+            "to": "EXP/26-27/002",
+            "totnum": 2,
+            "cancel": 0,
+            "net_issue": 2
+          },
+          {
+            "num": 3,
+            "from": "INV/26-27/001",
+            "to": "INV/26-27/010",
+            "totnum": 10,
+            "cancel": 1,
+            "net_issue": 9
+          }
+        ]
+      },
+      {
+        "doc_num": 4,
+        "docs": [
+          {
+            "num": 1,
+            "from": "DN/26-27/001",
+            "to": "DN/26-27/001",
+            "totnum": 1,
+            "cancel": 0,
+            "net_issue": 1
+          }
+        ]
+      },
+      {
+        "doc_num": 5,
+        "docs": [
+          {
+            "num": 1,
+            "from": "CN/26-27/001",
+            "to": "CN/26-27/003",
+            "totnum": 3,
+            "cancel": 0,
+            "net_issue": 3
+          }
+        ]
+      }
+    ]
+  }
+}
