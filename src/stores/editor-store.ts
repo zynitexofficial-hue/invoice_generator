@@ -29,6 +29,8 @@ interface EditorState {
   /** Show inline validation errors (after the first download attempt). */
   showErrors: boolean;
   numberTaken: boolean;
+  /** Minimum HSN digits from settings (4 up to ₹5 cr AATO, 6 above). */
+  hsnDigits: number;
   /** Derived on every edit — components select only the slices they show. */
   totals: InvoiceTotals | null;
   validation: ValidationResult;
@@ -58,13 +60,17 @@ interface EditorState {
   markError: () => void;
   setShowErrors: (v: boolean) => void;
   setNumberTaken: (v: boolean) => void;
+  setHsnDigits: (v: number) => void;
 }
 
 const EMPTY_VALIDATION: ValidationResult = { errors: [], warnings: [] };
 
-function derive(invoice: Invoice, numberTaken: boolean) {
+function derive(invoice: Invoice, numberTaken: boolean, hsnDigits: number) {
   const totals = computeTotals(invoice);
-  return { totals, validation: validateInvoice(invoice, totals, { duplicateNumber: numberTaken }) };
+  return {
+    totals,
+    validation: validateInvoice(invoice, totals, { duplicateNumber: numberTaken, hsnDigits }),
+  };
 }
 
 export const useEditor = create<EditorState>((set, get) => {
@@ -77,7 +83,7 @@ export const useEditor = create<EditorState>((set, get) => {
       invoice: next,
       revision: s.revision + 1,
       status: "pending",
-      ...derive(next, s.numberTaken),
+      ...derive(next, s.numberTaken, s.hsnDigits),
     }));
   };
 
@@ -90,12 +96,13 @@ export const useEditor = create<EditorState>((set, get) => {
     lastSavedAt: null,
     showErrors: false,
     numberTaken: false,
+    hsnDigits: 4,
     totals: null,
     validation: EMPTY_VALIDATION,
 
     load: (invoice, persisted, opts) =>
       set({
-        ...derive(invoice, false),
+        ...derive(invoice, false, get().hsnDigits),
         invoice,
         persisted,
         revision: opts?.dirty ? 1 : 0,
@@ -216,7 +223,13 @@ export const useEditor = create<EditorState>((set, get) => {
       set((s) =>
         s.numberTaken === v || !s.invoice
           ? { numberTaken: v }
-          : { numberTaken: v, ...derive(s.invoice, v) },
+          : { numberTaken: v, ...derive(s.invoice, v, s.hsnDigits) },
+      ),
+    setHsnDigits: (v) =>
+      set((s) =>
+        s.hsnDigits === v || !s.invoice
+          ? { hsnDigits: v }
+          : { hsnDigits: v, ...derive(s.invoice, s.numberTaken, v) },
       ),
   };
 });

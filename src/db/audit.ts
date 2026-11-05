@@ -36,13 +36,24 @@ export interface AuditInput {
 
 const clip = (v: string, max: number) => (v.length > max ? `${v.slice(0, max - 1)}…` : v);
 
+let lastStamp = 0;
+
+/**
+ * Strictly increasing timestamps so entries written in the same millisecond
+ * keep their order when sorted by `at`.
+ */
+function nextStamp(): string {
+  lastStamp = Math.max(Date.now(), lastStamp + 1);
+  return new Date(lastStamp).toISOString();
+}
+
 export function buildAuditEntry(input: AuditInput): AuditEntry {
   return auditEntrySchema.parse({
     id: newId(),
     entity: input.entity,
     entityId: input.entityId,
     action: input.action,
-    at: input.at ?? new Date().toISOString(),
+    at: input.at ?? nextStamp(),
     summary: clip(input.summary ?? "", 500),
     changes: (input.changes ?? []).slice(0, MAX_CHANGES).map((c) => ({
       field: clip(c.field, 60),

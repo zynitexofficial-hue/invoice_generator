@@ -143,6 +143,10 @@ export function createInvoice({
     paymentInstructions: settings.invoiceDefaults.paymentInstructions,
     footer: settings.invoiceDefaults.footer,
     declaration: declarationFor(type, settings),
+    // Exports default to "under LUT" with the saved LUT number.
+    ...(type === "export"
+      ? { exportDetails: { type: "wopay", lutNumber: settings.declarations.lutNumber } }
+      : {}),
     design: resolveDefaultDesign(settings, designs),
     createdAt: stamp,
     updatedAt: stamp,
@@ -177,6 +181,10 @@ export function withDocType(
     roundOff: currency === "INR" ? invoice.roundOff || settings.gst.roundOff : false,
     dueDate: dueDateFor(docType, invoice.invoiceDate || todayISO(), settings),
     declaration: declarationFor(docType, settings),
+    exportDetails:
+      isExport && !invoice.exportDetails.type
+        ? { ...invoice.exportDetails, type: "wopay", lutNumber: settings.declarations.lutNumber }
+        : invoice.exportDetails,
     payment: DOC_TYPE_META[docType].hasPayment
       ? invoice.payment
       : { ...invoice.payment, amountReceived: "" },

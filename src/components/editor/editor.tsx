@@ -91,6 +91,11 @@ export function EditorRoute() {
   const as = params.get("as");
   const noteParam = params.get("note");
   const customerParam = params.get("customer");
+  const hsnDigits = settings?.gst.hsnDigits;
+
+  useEffect(() => {
+    if (hsnDigits) useEditor.getState().setHsnDigits(hsnDigits);
+  }, [hsnDigits]);
 
   useEffect(() => {
     if (!settings || !designs) return;
