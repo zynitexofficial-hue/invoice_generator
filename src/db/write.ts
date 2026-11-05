@@ -25,11 +25,12 @@ function ensurePersistenceOnce() {
 export async function guardedWrite<T>(
   what: string,
   fn: () => Promise<T>,
-  opts: { deletion?: boolean } = {},
+  opts: { deletion?: boolean; bookkeeping?: boolean } = {},
 ): Promise<T> {
   try {
     const result = await fn();
-    await touchChange();
+    // Bookkeeping writes (e.g. recording when a backup ran) are not data changes.
+    if (!opts.bookkeeping) await touchChange();
     syncMarker(opts.deletion);
     if (typeof window !== "undefined") ensurePersistenceOnce();
     return result;

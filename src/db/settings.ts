@@ -12,18 +12,24 @@ export async function loadSettings(): Promise<AppSettings> {
 export type SettingsUpdater = (current: AppSettings) => AppSettings;
 
 /** Read-modify-write inside a transaction so concurrent updates don't clobber each other. */
-export async function updateSettings(updater: SettingsUpdater): Promise<AppSettings> {
+export async function updateSettings(
+  updater: SettingsUpdater,
+  opts: { bookkeeping?: boolean } = {},
+): Promise<AppSettings> {
   const db = getDb();
-  return guardedWrite("your settings", () =>
-    db.transaction("rw", db.settings, async () => {
-      const current = await loadSettings();
-      const next = settingsSchema.parse({
-        ...updater(current),
-        id: "app",
-        updatedAt: new Date().toISOString(),
-      });
-      await db.settings.put(next);
-      return next;
-    }),
+  return guardedWrite(
+    "your settings",
+    () =>
+      db.transaction("rw", db.settings, async () => {
+        const current = await loadSettings();
+        const next = settingsSchema.parse({
+          ...updater(current),
+          id: "app",
+          updatedAt: new Date().toISOString(),
+        });
+        await db.settings.put(next);
+        return next;
+      }),
+    opts,
   );
 }

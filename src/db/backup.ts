@@ -190,7 +190,9 @@ export async function downloadBackup(opts: { passphrase?: string } = {}) {
 
 /** Remember when the last successful backup was made (for reminders). */
 export async function markBackedUp(at: string) {
-  await updateSettings((s) => ({ ...s, backup: { ...s.backup, lastBackupAt: at } }));
+  await updateSettings((s) => ({ ...s, backup: { ...s.backup, lastBackupAt: at } }), {
+    bookkeeping: true,
+  });
 }
 
 /** Parse a plain (unencrypted) backup file. Encrypted files: use parseBackupFile. */
