@@ -252,7 +252,7 @@ function MobileMenu({
   );
 }
 
-const TAB_ITEMS = ["/dashboard", "/history", "/customers", "/settings"];
+const TAB_ITEMS = ["/dashboard", "/history", "/money", "/returns"];
 
 function MobileTabBar({ pathname }: { pathname: string }) {
   const items = TAB_ITEMS.map((href) => NAV_ITEMS.find((n) => n.href === href)!);

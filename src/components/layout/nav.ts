@@ -1,5 +1,8 @@
 import {
+  ChartColumn,
   FilePlus,
+  Landmark,
+  Wallet,
   House,
   LayoutTemplate,
   Package,
@@ -20,7 +23,10 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: House },
   { href: "/invoice", label: "Editor", icon: FilePlus },
-  { href: "/history", label: "History", icon: ScrollText },
+  { href: "/history", label: "Invoices", icon: ScrollText },
+  { href: "/money", label: "Money", icon: Wallet },
+  { href: "/returns", label: "GST Returns", icon: Landmark },
+  { href: "/analytics", label: "Analytics", icon: ChartColumn },
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/items", label: "Items", icon: Package },
   { href: "/templates", label: "Templates", icon: LayoutTemplate },
