@@ -1,6 +1,6 @@
 "use client";
 
-import { HardDriveUpload } from "lucide-react";
+import { HardDriveUpload, Lock, LockOpen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -8,7 +8,8 @@ import { create } from "zustand";
 import {
   downloadBackup,
   ImportError,
-  parseBackup,
+  isEncryptedBackupText,
+  parseBackupFile,
   parseInvoiceFile,
   restoreBackup,
   summarizeBackup,
@@ -17,7 +18,9 @@ import {
 } from "@/db/backup";
 import { getDb } from "@/db/db";
 import { saveInvoice } from "@/db/invoices";
-import { updateSettings } from "@/db/settings";
+import { loadSettings, updateSettings } from "@/db/settings";
+import { setSessionPassphrase } from "@/lib/auto-backup";
+import { BackupCryptoError } from "@/lib/backup-crypto";
 import { relativeTime } from "@/lib/dates";
 import type { BackupFile } from "@/lib/schema";
 import { plural } from "@/lib/utils";
@@ -32,6 +35,8 @@ import {
   DialogHeader,
 } from "@/components/ui/dialog";
 import { Segmented } from "@/components/ui/segmented";
+import { AutoBackupRunner } from "@/components/settings/auto-backup-runner";
+import { askPassphrase, PassphrasePromptHost } from "@/components/settings/passphrase-prompt";
 
 /*
  * App-wide file actions — "Open invoice file", "Restore backup" and
@@ -73,10 +78,28 @@ export function openInvoiceFile() {
   inputs.invoice?.click();
 }
 
+/**
+ * Download a backup. When "Encrypt backups" is on, ask for a passphrase first
+ * (it is never stored; it can optionally be kept in memory for automatic backups).
+ */
 export async function backupNow() {
   try {
-    const b = await downloadBackup();
-    toast.success("Backup downloaded", {
+    let passphrase: string | undefined;
+    const settings = await loadSettings();
+    if (settings.backup.encrypt) {
+      const answer = await askPassphrase({
+        mode: "create",
+        title: "Encrypt this backup",
+        description: "Choose a passphrase. You'll need it to restore this backup.",
+        confirmLabel: "Download encrypted backup",
+        offerRemember: settings.backup.autoFolderEnabled,
+      });
+      if (!answer) return;
+      passphrase = answer.passphrase;
+      if (answer.remember) setSessionPassphrase(answer.passphrase);
+    }
+    const b = await downloadBackup({ passphrase });
+    toast.success(passphrase ? "Encrypted backup downloaded" : "Backup downloaded", {
       description: `${plural(b.data.invoices.length, "document")}, ${plural(b.data.customers.length, "customer")}. Keep it somewhere safe.`,
     });
   } catch {
@@ -116,13 +139,40 @@ export function FileActionsHost() {
   const onBackup = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const parsed = parseBackup(await file.text());
+      const text = await file.text();
+      const opened: { result?: Awaited<ReturnType<typeof parseBackupFile>> } = {};
+      if (isEncryptedBackupText(text)) {
+        if (backupInput.current) backupInput.current.value = "";
+        const answer = await askPassphrase({
+          mode: "enter",
+          title: "This backup is encrypted",
+          description: `Enter the passphrase used when “${file.name}” was saved.`,
+          confirmLabel: "Open backup",
+          validate: async (passphrase) => {
+            try {
+              opened.result = await parseBackupFile(text, () => passphrase);
+              return null;
+            } catch (error) {
+              if (error instanceof BackupCryptoError && error.code === "wrong_passphrase")
+                return error.message;
+              throw error;
+            }
+          },
+        });
+        if (!answer || !opened.result) return;
+      } else {
+        opened.result = await parseBackupFile(text, () => null);
+      }
+      const { backup, encrypted } = opened.result;
       const db = getDb();
       const fresh = (await db.invoices.count()) === 0 && (await db.customers.count()) === 0;
-      set({ pending: { file: parsed, summary: summarizeBackup(parsed), fresh } });
+      set({ pending: { file: backup, summary: summarizeBackup(backup, encrypted), fresh } });
     } catch (error) {
       toast.error("Couldn't read this backup", {
-        description: error instanceof ImportError ? error.message : "The file may be damaged.",
+        description:
+          error instanceof ImportError || error instanceof BackupCryptoError
+            ? error.message
+            : "The file may be damaged.",
       });
     } finally {
       if (backupInput.current) backupInput.current.value = "";
@@ -156,6 +206,8 @@ export function FileActionsHost() {
         onChange={(e) => void onBackup(e.target.files?.[0])}
       />
       <RestoreDialog pending={pending} onClose={() => set({ pending: null })} />
+      <PassphrasePromptHost />
+      <AutoBackupRunner />
     </>
   );
 }
@@ -229,6 +281,19 @@ function RestoreForm({ pending, onClose }: { pending: PendingRestore; onClose: (
         description={`Created ${relativeTime(s.exportedAt)} · ${new Date(s.exportedAt).toLocaleString()}`}
       />
       <DialogBody className="grid gap-4">
+        <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
+          {s.encrypted ? (
+            <>
+              <Lock className="size-4 text-success" aria-hidden />
+              Encrypted backup — unlocked with your passphrase.
+            </>
+          ) : (
+            <>
+              <LockOpen className="size-4" aria-hidden />
+              Not encrypted.
+            </>
+          )}
+        </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {(
             [
@@ -236,6 +301,9 @@ function RestoreForm({ pending, onClose }: { pending: PendingRestore; onClose: (
               ["Customers", s.customers],
               ["Items", s.items],
               ["Designs", s.designs],
+              ["Expenses", s.expenses],
+              ["Other income", s.incomes],
+              ["GST filings", s.filings],
             ] as const
           ).map(([label, n]) => (
             <div

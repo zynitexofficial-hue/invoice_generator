@@ -6,6 +6,13 @@ import {
   isValidPinFormat,
   hashPin,
   verifyPin,
+  LEGACY_PIN_ITERATIONS,
+  PIN_ITERATIONS,
+  derivePinHex,
+  parsePinHash,
+  pinNeedsUpgrade,
+  takePendingPinUpgrade,
+  upgradedPinHash,
 } from "./security";
 
 describe("security utils", () => {
@@ -46,8 +53,8 @@ describe("security utils", () => {
     const salt = generateSalt(16);
     const hash = await hashPin(pin, salt);
 
-    expect(hash).toHaveLength(64); // 256 bits = 32 bytes = 64 hex chars
-    expect(typeof hash).toBe("string");
+    // Self-describing: algorithm, iterations, 256-bit hex digest.
+    expect(hash).toMatch(/^pbkdf2-sha256\$600000\$[0-9a-f]{64}$/);
 
     // Correct PIN matches
     const isCorrect = await verifyPin(pin, hash, salt);
@@ -67,5 +74,38 @@ describe("security utils", () => {
     const hash1 = await hashPin("112233", salt);
     const hash2 = await hashPin("112233", salt);
     expect(hash1).toBe(hash2);
+  });
+
+  it("verifies legacy 100k hashes (bare hex) and marks them for upgrade", async () => {
+    const salt = generateSalt(16);
+    const legacy = await derivePinHex("246810", salt, LEGACY_PIN_ITERATIONS);
+    expect(parsePinHash(legacy)).toEqual({ iterations: 100_000, hex: legacy });
+    expect(pinNeedsUpgrade(legacy)).toBe(true);
+
+    takePendingPinUpgrade(); // clear anything left over
+    expect(await verifyPin("246810", legacy, salt)).toBe(true);
+    expect(takePendingPinUpgrade()).toEqual({ pin: "246810", stored: legacy });
+    expect(takePendingPinUpgrade()).toBeNull();
+
+    // A wrong PIN never queues an upgrade.
+    expect(await verifyPin("000000", legacy, salt)).toBe(false);
+    expect(takePendingPinUpgrade()).toBeNull();
+
+    const next = await upgradedPinHash("246810", legacy);
+    expect(next).not.toBeNull();
+    expect(pinNeedsUpgrade(next!.pinHash)).toBe(false);
+    expect(parsePinHash(next!.pinHash)?.iterations).toBe(PIN_ITERATIONS);
+    expect(await verifyPin("246810", next!.pinHash, next!.pinSalt)).toBe(true);
+    // Current hashes don't queue an upgrade.
+    expect(takePendingPinUpgrade()).toBeNull();
+    expect(await upgradedPinHash("246810", next!.pinHash)).toBeNull();
+  });
+
+  it("rejects malformed stored hashes", async () => {
+    const salt = generateSalt(16);
+    expect(parsePinHash("")).toBeNull();
+    expect(parsePinHash("md5$1$abcd")).toBeNull();
+    expect(parsePinHash("pbkdf2-sha256$abc$abcd")).toBeNull();
+    expect(await verifyPin("123456", "garbage", salt)).toBe(false);
   });
 });
