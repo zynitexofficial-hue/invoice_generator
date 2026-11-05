@@ -11,6 +11,7 @@ import {
   ReceiptText,
   SlidersHorizontal,
   CircleAlert,
+  Tags,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -20,6 +21,7 @@ import { Page } from "@/components/layout/page";
 import { Skeleton } from "@/components/ui/misc";
 import { Spinner } from "@/components/ui/spinner";
 import { BusinessSection, PaymentsSection } from "./business-sections";
+import { CategoriesSection } from "./categories-section";
 import { DataSection } from "./data-section";
 import { DefaultsSection, FormatsSection, GstSection, NumberingSection } from "./invoice-sections";
 import { SecuritySection } from "./security-section";
@@ -45,6 +47,12 @@ const SECTIONS = [
     description: "Terms, notes and declarations",
   },
   { id: "gst", label: "Tax & GST", icon: Percent, description: "Rates, display and rounding" },
+  {
+    id: "categories",
+    label: "Categories",
+    icon: Tags,
+    description: "Expense and income categories",
+  },
   { id: "numbering", label: "Numbering", icon: Hash, description: "Number patterns per document" },
   {
     id: "formats",
@@ -144,6 +152,8 @@ export function SettingsView() {
                 <DefaultsSection draft={draft} update={update} />
               ) : active === "gst" ? (
                 <GstSection draft={draft} update={update} />
+              ) : active === "categories" ? (
+                <CategoriesSection draft={draft} update={update} />
               ) : active === "numbering" ? (
                 <NumberingSection draft={draft} update={update} />
               ) : active === "formats" ? (

@@ -5,6 +5,7 @@ import {
   Braces,
   FileText,
   FolderOpen,
+  HandCoins,
   HardDriveDownload,
   HardDriveUpload,
   Keyboard,
@@ -12,6 +13,7 @@ import {
   Monitor,
   MonitorDown,
   Moon,
+  ReceiptText,
   Search,
   Sun,
 } from "lucide-react";
@@ -131,6 +133,20 @@ export function CommandPalette() {
                     New {DOC_TYPE_META[t].label.toLowerCase()}
                   </Item>
                 ))}
+                <Item
+                  icon={<ReceiptText />}
+                  onSelect={() => go("/money?tab=out&new=1")}
+                  keywords={["new", "expense", "bill", "purchase", "spent", "money out", "itc"]}
+                >
+                  Add expense
+                </Item>
+                <Item
+                  icon={<HandCoins />}
+                  onSelect={() => go("/money?tab=in&new=1")}
+                  keywords={["new", "income", "interest", "commission", "refund", "money in"]}
+                >
+                  Add income
+                </Item>
               </Group>
 
               <Group heading="Go to">
