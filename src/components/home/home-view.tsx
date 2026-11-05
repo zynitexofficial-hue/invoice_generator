@@ -8,28 +8,54 @@ import {
   CircleCheck,
   Circle,
   DatabaseBackup,
-  FileText,
   Landmark,
   Plus,
   Receipt,
-  TrendingUp,
-  Wallet,
   Clock,
+  HandCoins,
+  ReceiptText,
+  FileSpreadsheet,
+  ChartColumn,
 } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
-import { useMemo } from "react";
-import { useInvoices, useSettings } from "@/db/hooks";
+import { useRouter } from "next/navigation";
+import { useId, useMemo, useState } from "react";
+import {
+  computeMetrics,
+  compare,
+  dashboardInsights,
+  lastNMonths,
+  METRIC_DEFINITIONS,
+  monthlyTrend,
+  receivablesReport,
+} from "@/lib/analytics";
 import { DOC_TYPE_META } from "@/lib/documents";
-import { formatDate, relativeTime, todayISO } from "@/lib/dates";
+import { formatDate, relativeTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
 import { displayStatus, isDraft } from "@/lib/invoice-calc";
-import { toDec, ZERO, type Dec } from "@/lib/money";
-import { CREATABLE_DOC_TYPES, type Invoice } from "@/lib/schema";
-import { cn } from "@/lib/utils";
+import { monthKey, periodLabel, shiftPeriod } from "@/lib/period";
+import { CREATABLE_DOC_TYPES, type AppSettings, type Invoice } from "@/lib/schema";
+import { cn, plural } from "@/lib/utils";
+import {
+  FILING_STATUS_LABELS,
+  filesGstReturns,
+  insightDeadlines,
+  nextDeadline,
+  num,
+} from "@/components/analytics/analytics-model";
+import {
+  CoverageLine,
+  delta,
+  inrFormatter,
+  InsightList,
+  useAnalyticsSource,
+} from "@/components/analytics/shared";
+import { BarChart, ChartFrame, KpiCard, type CategoryDatum } from "@/components/charts";
 import { Page } from "@/components/layout/page";
 import { OpenInvoiceFileButton } from "@/components/open-invoice-file";
 import { StatusBadge } from "@/components/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -42,115 +68,184 @@ import {
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 
 export function HomeView() {
-  const settings = useSettings();
-  const invoices = useInvoices();
-  const today = todayISO();
+  const router = useRouter();
+  const { settings, invoices, data, filings, ready, today } = useAnalyticsSource();
+  const month = monthKey(today);
 
-  const stats = useMemo(() => {
-    if (!invoices) return null;
-    const byCurrency = new Map<
-      string,
-      { invoiced: Dec; received: Dec; outstanding: Dec; overdue: number; count: number }
-    >();
-    let drafts = 0;
-    for (const inv of invoices) {
-      if (isDraft(inv)) {
-        drafts++;
-        continue;
-      }
-      if (inv.status === "cancelled" || !DOC_TYPE_META[inv.docType].hasPayment) continue;
-      const entry = byCurrency.get(inv.currency) ?? {
-        invoiced: ZERO,
-        received: ZERO,
-        outstanding: ZERO,
-        overdue: 0,
-        count: 0,
-      };
-      const total = toDec(inv.summary.grandTotal);
-      const balance = toDec(inv.summary.balanceDue);
-      entry.invoiced = entry.invoiced.plus(total);
-      entry.outstanding = entry.outstanding.plus(balance);
-      entry.received = entry.received.plus(total.minus(balance));
-      entry.count++;
-      if (displayStatus(inv, today) === "overdue") entry.overdue++;
-      byCurrency.set(inv.currency, entry);
-    }
-    const currencies = [...byCurrency.entries()].sort((a, b) =>
-      a[0] === "INR" ? -1 : b[0] === "INR" ? 1 : b[1].count - a[1].count,
-    );
-    return { currencies, drafts };
-  }, [invoices, today]);
+  const dash = useMemo(() => {
+    if (!data || !settings || !filings) return null;
+    const current = computeMetrics(data, month, today);
+    const previous = computeMetrics(data, shiftPeriod(month, -1), today);
+    const trend = monthlyTrend(data, lastNMonths(today, 6), today);
+    const recv = receivablesReport(data, today);
+    const insights = dashboardInsights({
+      current,
+      previous,
+      deadlines: insightDeadlines(settings, filings, data, today),
+      todayISO: today,
+      previousLabel: "last month",
+    });
+    return {
+      current,
+      growth: compare(current, previous),
+      trend,
+      overdueCount: recv.open.filter((o) => o.overdue).length,
+      insights,
+      next: nextDeadline(settings, filings, today),
+    };
+  }, [data, settings, filings, month, today]);
 
-  if (!settings || !invoices || !stats) return <HomeSkeleton />;
+  if (!ready || !settings || !invoices || !dash) return <HomeSkeleton />;
 
   const name = settings.profile.name.trim();
   const draft = invoices.find((i) => isDraft(i));
   const recent = invoices.slice(0, 6);
-  const [primaryCurrency, primary] = stats.currencies[0] ?? ["INR", null];
   const grouping = settings.formats.numberGrouping;
-  const money = (d: Dec, c = primaryCurrency) => formatMoney(d.toFixed(2), c, grouping);
+  const money = inrFormatter(grouping);
+  const hasInvoices = invoices.length > 0;
+  const c = dash.current;
+  const g = dash.growth;
+  const spark = (k: "revenue" | "expenses" | "profit") => dash.trend.map((t) => num(t[k]));
+  const bars: CategoryDatum[] = dash.trend.map((t) => ({
+    key: t.month,
+    label: t.label,
+    shortLabel: t.shortLabel,
+    values: { revenue: num(t.revenue), expenses: num(t.expenses) },
+  }));
+  const trendEmpty = bars.every((b) => !b.values.revenue && !b.values.expenses);
 
   return (
     <Page
-      title={name ? `Welcome back${name ? `, ${name.split(" ")[0]}` : ""}` : "Welcome"}
-      description="Here's what's happening with your invoices in this browser."
-      actions={
-        <>
-          <OpenInvoiceFileButton />
-          <NewDocumentButton />
-        </>
+      title={name ? `Welcome back, ${name.split(" ")[0]}` : "Welcome"}
+      description={
+        name
+          ? `${name} · ${periodLabel(month)} at a glance, from records in this browser.`
+          : `${periodLabel(month)} at a glance, from records in this browser.`
       }
+      actions={<OpenInvoiceFileButton />}
     >
-      <SetupChecklist settings={settings} hasInvoices={invoices.length > 0} />
+      <nav aria-label="Quick actions" className="-mt-2 mb-6 flex flex-wrap gap-2">
+        <NewDocumentButton />
+        <Button variant="secondary" asChild>
+          <Link href="/money?tab=out&new=1">
+            <ReceiptText />
+            Add expense
+          </Link>
+        </Button>
+        <Button variant="secondary" asChild>
+          <Link href="/money?tab=in&new=1">
+            <HandCoins />
+            Add income
+          </Link>
+        </Button>
+        <Button variant="secondary" asChild>
+          <Link href="/returns">
+            <FileSpreadsheet />
+            GST returns
+          </Link>
+        </Button>
+      </nav>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          index={0}
-          icon={<Receipt />}
-          label="Invoiced"
-          value={primary ? money(primary.invoiced) : money(ZERO)}
-          hint={primary ? `${primary.count} issued` : "Nothing issued yet"}
-        />
-        <StatCard
-          index={1}
-          icon={<Wallet />}
-          label="Received"
-          value={primary ? money(primary.received) : money(ZERO)}
-          hint="Payments recorded"
-          tone="success"
-        />
-        <StatCard
-          index={2}
-          icon={<TrendingUp />}
-          label="Outstanding"
-          value={primary ? money(primary.outstanding) : money(ZERO)}
-          hint={primary?.overdue ? `${primary.overdue} overdue` : "Nothing overdue"}
-          tone={primary?.overdue ? "danger" : "default"}
-        />
-        <StatCard
-          index={3}
-          icon={<FileText />}
-          label="Drafts"
-          value={String(stats.drafts)}
-          hint="Not downloaded yet"
-        />
-      </div>
-      {stats.currencies.length > 1 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {stats.currencies.slice(1).map(([code, s]) => (
-            <span
-              key={code}
-              className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted-foreground"
-            >
-              {code}: invoiced <b className="text-foreground">{money(s.invoiced, code)}</b> ·
-              outstanding <b className="text-foreground">{money(s.outstanding, code)}</b>
-            </span>
-          ))}
+      {!hasInvoices && <SetupChecklist settings={settings} hasInvoices={hasInvoices} />}
+
+      <section aria-labelledby="this-month">
+        <div className="mb-3 flex items-baseline justify-between gap-2">
+          <h2 id="this-month" className="text-[15px] font-semibold tracking-[-0.01em]">
+            This month
+          </h2>
+          <Link
+            href="/analytics"
+            className="inline-flex items-center gap-1 rounded-sm text-xs font-medium text-primary hover:underline focus-visible:focus-ring"
+          >
+            <ChartColumn className="size-3.5" aria-hidden="true" />
+            Full analytics
+          </Link>
         </div>
-      )}
-      <p className="mt-2 text-xs text-subtle-foreground">
-        Figures include downloaded invoices saved in this browser (quotations excluded).
-      </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <KpiCard
+            label="Sales"
+            value={money(c.salesRevenue)}
+            delta={delta(g.salesRevenue)}
+            deltaLabel="vs last month"
+            definition={METRIC_DEFINITIONS.salesRevenue}
+            sparkline={spark("revenue")}
+            sparklineLabel="Sales, last 6 months"
+          />
+          <KpiCard
+            label="Expenses"
+            value={money(c.expenses)}
+            delta={delta(g.expenses)}
+            deltaLabel="vs last month"
+            positiveIsGood={false}
+            definition={METRIC_DEFINITIONS.expenses}
+            sparkline={spark("expenses")}
+            sparklineLabel="Expenses, last 6 months"
+          />
+          <KpiCard
+            label="Net profit"
+            value={money(c.netProfit)}
+            delta={delta(g.netProfit)}
+            deltaLabel="vs last month"
+            definition={METRIC_DEFINITIONS.netProfit}
+            sparkline={spark("profit")}
+            sparklineLabel="Net profit, last 6 months"
+          />
+          <ReceivablesCard
+            outstanding={money(c.receivablesOutstanding)}
+            overdue={money(c.receivablesOverdue)}
+            overdueCount={dash.overdueCount}
+          />
+        </div>
+        <CoverageLine coverage={c.dataCoverage} className="mt-2" />
+      </section>
+
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <GstCard
+          settings={settings}
+          money={money}
+          payable={c.estimatedGstPayable}
+          output={c.outputTax}
+          itc={c.eligibleItc.total}
+          next={dash.next}
+          today={today}
+        />
+        <Card>
+          <CardHeader title="Worth a look" description="The most important things right now." />
+          <CardContent>
+            <InsightList
+              insights={dash.insights}
+              empty={
+                hasInvoices
+                  ? "Nothing needs your attention right now."
+                  : "Insights appear once you issue invoices and add expenses."
+              }
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <ChartFrame
+        className="mt-4"
+        title="Sales vs expenses"
+        description="Last 6 months. Click a month to see its details."
+        empty={trendEmpty}
+        emptyMessage="Your monthly sales and expenses will show here."
+        table={{
+          headers: ["Month", "Sales (₹)", "Expenses (₹)"],
+          rows: dash.trend.map((t) => [t.label, t.revenue, t.expenses]),
+        }}
+        csvName="sales-vs-expenses-last-6-months"
+      >
+        <BarChart
+          data={bars}
+          height={200}
+          series={[
+            { key: "revenue", label: "Sales" },
+            { key: "expenses", label: "Expenses" },
+          ]}
+          onSelect={(d) => router.push(`/analytics?period=${d.key}`)}
+        />
+      </ChartFrame>
 
       <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Card>
@@ -257,7 +352,190 @@ export function HomeView() {
           </Card>
         </div>
       </div>
+
+      {hasInvoices && (
+        <div className="mt-6">
+          <SetupChecklist settings={settings} hasInvoices={hasInvoices} />
+        </div>
+      )}
     </Page>
+  );
+}
+
+function ReceivablesCard({
+  outstanding,
+  overdue,
+  overdueCount,
+}: {
+  outstanding: string;
+  overdue: string;
+  overdueCount: number;
+}) {
+  return (
+    <Link
+      href="/analytics?tab=receivables"
+      className="group flex min-w-0 flex-col gap-1.5 rounded-xl border border-border bg-surface p-4 shadow-xs transition-colors hover:border-border-strong focus-visible:focus-ring"
+    >
+      <span className="flex items-center justify-between text-[13px] font-medium text-muted-foreground">
+        To receive
+        <ArrowUpRight className="size-4 text-subtle-foreground transition-colors group-hover:text-foreground" />
+      </span>
+      <span className="truncate text-2xl leading-tight font-semibold tracking-tight tabular-nums">
+        {outstanding}
+      </span>
+      <span
+        className={cn(
+          "text-xs",
+          overdueCount ? "font-medium text-danger-foreground" : "text-muted-foreground",
+        )}
+      >
+        {overdueCount
+          ? `${plural(overdueCount, "invoice")} overdue · ${overdue}`
+          : "Nothing overdue"}
+      </span>
+      <span className="text-xs text-muted-foreground">Unpaid balance on issued invoices</span>
+    </Link>
+  );
+}
+
+type Heads = { cgst: string; sgst: string; igst: string; total: string };
+
+function GstCard({
+  settings,
+  money,
+  payable,
+  output,
+  itc,
+  next,
+  today,
+}: {
+  settings: AppSettings;
+  money: (v: string) => string;
+  payable: Heads;
+  output: Heads;
+  itc: Heads;
+  next: ReturnType<typeof nextDeadline>;
+  today: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const detailId = useId();
+  if (!filesGstReturns(settings)) {
+    return (
+      <Card>
+        <CardHeader title="GST" />
+        <CardContent className="text-sm text-muted-foreground">
+          {settings.gst.registrationType === "composition"
+            ? "You're set up as a composition taxpayer, so there's no output tax or ITC estimate here."
+            : "You're set up as not registered for GST, so there's nothing to estimate or file."}{" "}
+          <Link
+            href="/settings?section=gst"
+            className="font-medium text-primary hover:underline focus-visible:focus-ring"
+          >
+            GST settings
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
+  const days = next ? Math.round((Date.parse(next.dueDate) - Date.parse(today)) / 86_400_000) : 0;
+  const rows: [string, keyof Heads][] = [
+    ["CGST", "cgst"],
+    ["SGST/UTGST", "sgst"],
+    ["IGST", "igst"],
+  ];
+  return (
+    <Card>
+      <CardHeader
+        title="GST this month"
+        action={
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/returns">
+              Returns
+              <ArrowRight />
+            </Link>
+          </Button>
+        }
+      />
+      <CardContent className="space-y-4">
+        <div>
+          <div className="text-xs text-muted-foreground">Estimated GST payable</div>
+          <div className="text-2xl font-semibold tracking-tight tabular-nums">
+            {money(payable.total)}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Output tax {money(output.total)} − eligible ITC {money(itc.total)}
+          </div>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={detailId}
+            onClick={() => setOpen((v) => !v)}
+            className="mt-1 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-primary hover:underline focus-visible:focus-ring"
+          >
+            {open ? "Hide" : "Show"} by tax head
+            <ChevronDown
+              className={cn("size-3.5 transition-transform", open && "rotate-180")}
+              aria-hidden="true"
+            />
+          </button>
+          <div id={detailId} hidden={!open} className="mt-2 overflow-x-auto">
+            <table className="w-full text-xs">
+              <caption className="sr-only">GST by head this month</caption>
+              <thead>
+                <tr className="text-muted-foreground">
+                  <th scope="col" className="py-1 text-left font-medium">
+                    Head
+                  </th>
+                  <th scope="col" className="py-1 text-right font-medium">
+                    Output
+                  </th>
+                  <th scope="col" className="py-1 text-right font-medium">
+                    ITC
+                  </th>
+                  <th scope="col" className="py-1 text-right font-medium">
+                    Payable
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(([label, k]) => (
+                  <tr key={k} className="border-t border-border">
+                    <th scope="row" className="py-1 text-left font-normal">
+                      {label}
+                    </th>
+                    <td className="py-1 text-right tabular-nums">{money(output[k])}</td>
+                    <td className="py-1 text-right tabular-nums">{money(itc[k])}</td>
+                    <td className="py-1 text-right font-medium tabular-nums">
+                      {money(payable[k])}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {METRIC_DEFINITIONS.estimatedGstPayable}
+            </p>
+          </div>
+        </div>
+        {next && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-surface-2 px-3 py-2 text-sm">
+            <span className="font-medium">Next due:</span>
+            <span>
+              {next.returnType} for {next.periodLabel} ·{" "}
+              {formatDate(next.dueDate, settings.formats.dateFormat)}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              ({days === 0 ? "today" : `in ${plural(days, "day")}`})
+            </span>
+            {next.status && (
+              <Badge size="sm" tone={days <= 5 ? "warning" : "neutral"}>
+                {FILING_STATUS_LABELS[next.status]}
+              </Badge>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -297,58 +575,6 @@ function NewDocumentButton() {
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
-  );
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  hint,
-  tone = "default",
-  index,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  hint: string;
-  tone?: "default" | "success" | "danger";
-  index: number;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.04 * index, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-      className="rounded-2xl border border-border bg-surface p-5 shadow-xs"
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-muted-foreground">{label}</span>
-        <span
-          className={cn(
-            "flex size-8 items-center justify-center rounded-lg [&_svg]:size-4",
-            tone === "success"
-              ? "bg-success-soft text-success-foreground"
-              : tone === "danger"
-                ? "bg-danger-soft text-danger-foreground"
-                : "bg-primary-soft text-primary-soft-foreground",
-          )}
-        >
-          {icon}
-        </span>
-      </div>
-      <div className="mt-3 truncate text-2xl font-semibold tracking-[-0.02em] tabular-nums">
-        {value}
-      </div>
-      <div
-        className={cn(
-          "mt-1 text-xs",
-          tone === "danger" ? "text-danger-foreground" : "text-muted-foreground",
-        )}
-      >
-        {hint}
-      </div>
-    </motion.div>
   );
 }
 
@@ -425,7 +651,7 @@ function SetupChecklist({
   settings,
   hasInvoices,
 }: {
-  settings: NonNullable<ReturnType<typeof useSettings>>;
+  settings: AppSettings;
   hasInvoices: boolean;
 }) {
   const p = settings.profile;
@@ -505,13 +731,22 @@ function HomeSkeleton() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6 lg:px-10 lg:pt-10">
       <Skeleton className="h-8 w-64" />
-      <Skeleton className="mt-3 h-4 w-80" />
-      <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Skeleton className="mt-3 h-4 w-80 max-w-full" />
+      <div className="mt-6 flex flex-wrap gap-2">
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-32 rounded-2xl" />
+          <Skeleton key={i} className="h-9 w-32" />
         ))}
       </div>
-      <Skeleton className="mt-8 h-80 rounded-2xl" />
+      <div className="mt-8 grid gap-3 sm:grid-cols-2">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-32 rounded-xl" />
+        ))}
+      </div>
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-48 rounded-2xl" />
+        <Skeleton className="h-48 rounded-2xl" />
+      </div>
+      <Skeleton className="mt-4 h-64 rounded-xl" />
     </div>
   );
 }
