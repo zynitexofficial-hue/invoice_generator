@@ -2,6 +2,8 @@
 
 import {
   DatabaseBackup,
+  Download,
+  FileWarning,
   HardDriveDownload,
   HardDriveUpload,
   ShieldAlert,
@@ -13,11 +15,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { clearAllData } from "@/db/backup";
 import { initStorageHealth, refreshEstimate } from "@/db/health";
-import { useSettings } from "@/db/hooks";
+import { useDataHealth, useSettings } from "@/db/hooks";
+import { invalidRows, VALIDATED_TABLES, type ValidatedTable } from "@/db/read";
 import { updateSettings } from "@/db/settings";
 import { formatDate, relativeTime } from "@/lib/dates";
 import { formatBytes } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn, downloadBlob, plural } from "@/lib/utils";
 import { useStorageStatus } from "@/stores/storage-status";
 import { backupNow, startRestore } from "@/components/storage/file-actions";
 import { setSessionPassphrase } from "@/lib/auto-backup";
@@ -32,6 +35,70 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { confirm } from "@/components/ui/confirm";
 import { Select } from "@/components/ui/select";
 import { SwitchRow } from "@/components/ui/switch";
+
+const TABLE_LABELS: Record<ValidatedTable, string> = {
+  customers: "Customers",
+  items: "Items",
+  invoices: "Invoices & documents",
+  designs: "Saved designs",
+  expenses: "Expenses",
+  incomes: "Other income",
+  filings: "GST filing tracker",
+  returnSnapshots: "Return snapshots",
+  auditLog: "Change history",
+};
+
+/** Rows that fail validation are hidden from the app; let the user download them. */
+function DataHealthCard() {
+  const health = useDataHealth();
+  if (!health) return null;
+  const bad = VALIDATED_TABLES.filter((t) => health[t] > 0);
+  if (bad.length === 0)
+    return (
+      <p className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
+        <ShieldCheck className="size-4 text-success-foreground" aria-hidden />
+        All records are readable ✓
+      </p>
+    );
+
+  const download = async (table: ValidatedTable) => {
+    try {
+      const rows = await invalidRows(table);
+      const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+      downloadBlob(blob, `unreadable-${table}-${new Date().toISOString().slice(0, 10)}.json`);
+    } catch {
+      toast.error("Couldn't read those rows");
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title="Data health"
+        description="Some saved records couldn't be read and are hidden from the app. Download them to keep a copy or to get help recovering them."
+        icon={<FileWarning />}
+      />
+      <CardContent>
+        <ul className="divide-y divide-border rounded-xl border border-border">
+          {bad.map((t) => (
+            <li key={t} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              <div className="text-sm">
+                <div className="font-medium">{TABLE_LABELS[t]}</div>
+                <div className="text-[13px] text-danger-foreground">
+                  {plural(health[t], "unreadable record")}
+                </div>
+              </div>
+              <Button size="sm" onClick={() => void download(t)}>
+                <Download />
+                Download raw rows
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function DataSection() {
   const status = useStorageStatus();
@@ -169,6 +236,8 @@ export function DataSection() {
           )}
         </CardContent>
       </Card>
+
+      <DataHealthCard />
 
       {settings && <AutoBackupCard settings={settings} />}
       {settings && <RetentionCard settings={settings} />}
