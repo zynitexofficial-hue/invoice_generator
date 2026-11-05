@@ -1,12 +1,23 @@
 import type { InvoiceTotals } from "@/lib/calc/engine";
 import { computeSchedule } from "@/lib/calc/schedule";
 import { DOC_TYPE_META } from "@/lib/documents";
+import { formatMoney } from "@/lib/format";
 import { checkGstin } from "@/lib/gst/gstin";
-import { gstinStateMismatch, resolvePlaceOfSupply, sellerStateCode } from "@/lib/gst/tax";
+import { stateName } from "@/lib/gst/states";
+import {
+  customerStateCode,
+  gstinStateMismatch,
+  invoiceHasTax,
+  isIndia,
+  isZeroRatedWithPayment,
+  resolvePlaceOfSupply,
+  sellerStateCode,
+} from "@/lib/gst/tax";
 import { isValidDecimal, toDec } from "@/lib/money";
 import { currencyPrecision } from "@/lib/currency";
-import { checkGstNumberRules } from "@/lib/numbering";
-import type { Invoice } from "@/lib/schema";
+import { checkGstNumberRules, isGstNumberedDocType } from "@/lib/numbering";
+import { fyLabel, fyStartYear } from "@/lib/period";
+import { isNoteDocType, type Invoice } from "@/lib/schema";
 
 export type Severity = "error" | "warning";
 
@@ -31,6 +42,61 @@ export interface ValidationResult {
 export interface ValidationContext {
   /** Another invoice in this browser already uses the same number. */
   duplicateNumber?: boolean;
+  /**
+   * Minimum HSN/SAC digits on taxed lines (settings.gst.hsnDigits: 4 when
+   * the annual turnover is up to ₹5 crore, 6 above). Defaults to 4.
+   */
+  hsnDigits?: number;
+}
+
+/* ---------------- GST rules shared with the UI ---------------- */
+
+/** GST rate rationalisation: the 12% and 28% slabs were removed for most goods from this date. */
+export const GST_RATE_CHANGE_DATE = "2025-09-22";
+export const GST_RATES_FROM_2025_09_22 = ["0", "0.25", "3", "5", "18", "40"] as const;
+/** Older invoices may still carry the 12% and 28% slabs. */
+export const GST_RATES_BEFORE_2025_09_22 = ["0", "0.25", "3", "5", "12", "18", "28", "40"] as const;
+
+/** GST rates valid on a document date ("" = today's rules). */
+export function allowedGstRates(dateISO: string): readonly string[] {
+  return dateISO && dateISO < GST_RATE_CHANGE_DATE
+    ? GST_RATES_BEFORE_2025_09_22
+    : GST_RATES_FROM_2025_09_22;
+}
+
+export function isAllowedGstRate(rate: string, dateISO: string): boolean {
+  const n = Number(rate.trim() || "0");
+  return allowedGstRates(dateISO).some((r) => Number(r) === n);
+}
+
+/** Tax invoices to customers without a GSTIN at or above this value need name, address and state. */
+export const UNREGISTERED_DETAILS_THRESHOLD = "50000";
+
+/**
+ * Last date to issue a credit note that reduces GST for an invoice (s.34):
+ * 30 November after the end of the invoice's financial year.
+ */
+export function creditNoteDeadline(originalInvoiceDate: string): string {
+  return `${fyStartYear(originalInvoiceDate) + 1}-11-30`;
+}
+
+const SHORT_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+function plainDate(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d} ${SHORT_MONTHS[m - 1]} ${y}`;
 }
 
 /** Editor element ids for fields; kept here so validation and UI agree. */
@@ -44,7 +110,15 @@ export const fieldId = {
   sellerState: "field-seller-state",
   customerName: "field-customer-name",
   customerGstin: "field-customer-gstin",
+  customerAddress: "field-customer-address",
+  customerState: "field-customer-state",
   placeOfSupply: "field-place-of-supply",
+  supplyType: "field-supply-type",
+  exportType: "field-export-type",
+  lutNumber: "field-lut-number",
+  exchangeRate: "field-exchange-rate",
+  noteOriginal: "field-note-original",
+  noteReason: "field-note-reason",
   lines: "field-lines",
   invoiceDiscount: "field-invoice-discount",
   amountReceived: "field-amount-received",
@@ -67,6 +141,9 @@ export function validateInvoice(
     warnings.push({ field, message, severity: "warning", soft: true });
   const meta = DOC_TYPE_META[inv.docType];
   const dp = currencyPrecision(inv.currency);
+  // Exports and SEZ supplies with payment carry IGST although their document type alone doesn't.
+  const hasTax = invoiceHasTax(inv);
+  const money = (v: string) => formatMoney(v, inv.currency);
 
   // Identity & dates
   if (!inv.number.trim()) err(fieldId.number, "Add a document number.");
@@ -111,13 +188,23 @@ export function validateInvoice(
           );
       }
     }
-    if (meta.hasTax) {
+    if (hasTax) {
       const rate = toDec(line.gstRate);
       if (
         !isValidDecimal(line.gstRate, { maxDecimals: 3, allowEmpty: true }) ||
         rate.greaterThan(100)
       )
         err(fieldId.line(line.id, "rate"), `${label}: GST rate must be between 0 and 100.`);
+      else if (!isAllowedGstRate(line.gstRate, inv.invoiceDate))
+        // Date-aware (B8): 12% and 28% are fine on documents dated before 22 Sep 2025.
+        warn(
+          fieldId.line(line.id, "rate"),
+          `${label}: ${Number(line.gstRate)}% isn't a GST rate ${
+            inv.invoiceDate && inv.invoiceDate < GST_RATE_CHANGE_DATE
+              ? "for this date"
+              : "since 22 Sep 2025"
+          } (${allowedGstRates(inv.invoiceDate).join(", ")}%).`,
+        );
     }
   }
 
@@ -132,13 +219,19 @@ export function validateInvoice(
       err(fieldId.invoiceDiscount, "Invoice discount is more than the subtotal.");
   }
 
-  // Payment
+  // Payment. The calculation caps "received" at the total, so an overpayment would
+  // disappear silently — say how much is extra instead (B13).
   if (meta.hasPayment && inv.payment.amountReceived.trim()) {
-    const received = toDec(inv.payment.amountReceived);
     if (!isValidDecimal(inv.payment.amountReceived, { maxDecimals: dp }))
       err(fieldId.amountReceived, "Enter a valid amount received.");
-    else if (received.greaterThan(toDec(totals.grandTotal)))
-      err(fieldId.amountReceived, "Amount received is more than the invoice total.");
+    else {
+      const excess = overpayment(inv, totals);
+      if (excess)
+        warn(
+          fieldId.amountReceived,
+          `${money(excess)} more than the total — record the excess as an advance.`,
+        );
+    }
   }
 
   // Payment terms (advance / milestones)
@@ -168,6 +261,94 @@ export function validateInvoice(
     }
   }
 
+  // Rule 46: GST document numbers are at most 16 letters, digits, "-" and "/" (A4).
+  if (isGstNumberedDocType(inv.docType) && inv.number.trim()) {
+    const number = inv.number.trim();
+    const rules = checkGstNumberRules(number);
+    if (rules.tooLong)
+      err(
+        fieldId.number,
+        `GST allows at most 16 characters in the number (this one has ${number.length}).`,
+      );
+    if (rules.invalidChars)
+      err(fieldId.number, "GST document numbers may only contain letters, digits, “-” and “/”.");
+  }
+
+  if (inv.docType === "tax_invoice") {
+    // The tax head (CGST + SGST vs IGST) needs both states — never guess on a tax invoice (B7).
+    if (!sellerStateCode(inv.seller))
+      err(fieldId.sellerState, "Add your state — a tax invoice needs it to work out the GST.");
+    else if (!resolvePlaceOfSupply(inv))
+      err(
+        fieldId.placeOfSupply,
+        "Add the place of supply (the customer's state) — a tax invoice needs it.",
+      );
+
+    // Customers without GSTIN: name, address and state on invoices of ₹50,000 or more (B9).
+    if (
+      !inv.customer.gstin.trim() &&
+      inv.currency === "INR" &&
+      toDec(totals.grandTotal).greaterThanOrEqualTo(UNREGISTERED_DETAILS_THRESHOLD)
+    ) {
+      const why = "needed for customers without GSTIN on invoices of ₹50,000 or more";
+      if (!inv.customer.billingAddress.trim())
+        err(fieldId.customerAddress, `Customer address is ${why}.`);
+      if (isIndia(inv.customer.country) && !customerStateCode(inv.customer))
+        err(fieldId.customerState, `Customer state is ${why}.`);
+    }
+  }
+
+  // HSN/SAC length on taxed lines (B11): 4 digits up to ₹5 crore turnover, 6 above.
+  const minHsn = ctx.hsnDigits ?? 4;
+  if (hasTax && inv.docType !== "proforma") {
+    for (const [index, line] of inv.lines.entries()) {
+      const code = line.hsnSac.trim();
+      if (!code || toDec(line.gstRate).isZero()) continue;
+      if (code.replace(/\D/g, "").length < minHsn)
+        warn(
+          fieldId.line(line.id, "hsn"),
+          `${line.name.trim() || `Item ${index + 1}`}: HSN/SAC should have at least ${minHsn} digits.`,
+        );
+    }
+  }
+
+  // Credit/debit notes (B1, B2)
+  if (isNoteDocType(inv.docType)) {
+    if (!inv.note.originalInvoiceNumber.trim())
+      err(fieldId.noteOriginal, "A note must name the original invoice it corrects.");
+    if (!inv.note.reason) err(fieldId.noteReason, "Choose the reason for this note.");
+    const original = inv.note.originalInvoiceDate;
+    if (inv.docType === "credit_note" && original && inv.invoiceDate) {
+      const deadline = creditNoteDeadline(original);
+      if (inv.invoiceDate > deadline)
+        warn(
+          fieldId.invoiceDate,
+          `Credit notes for FY ${fyLabel(fyStartYear(original))} invoices had to be issued by ${plainDate(deadline)}, so this note can't reduce the GST.`,
+        );
+    }
+  }
+
+  // Exports (B6)
+  if (inv.docType === "export") {
+    const ex = inv.exportDetails;
+    if (ex.type === "wopay" && !ex.lutNumber.trim())
+      err(fieldId.lutNumber, "Add your LUT/bond number — exports without IGST need it.");
+    if (!ex.type)
+      hint(fieldId.exportType, "Choose the export type: with IGST payment or under LUT.");
+    if (inv.currency !== "INR") {
+      if (!ex.exchangeRate.trim())
+        err(
+          fieldId.exchangeRate,
+          `Add the exchange rate (₹ for 1 ${inv.currency}) — GST returns report exports in rupees.`,
+        );
+      else if (
+        !isValidDecimal(ex.exchangeRate, { maxDecimals: 4 }) ||
+        !toDec(ex.exchangeRate).greaterThan(0)
+      )
+        err(fieldId.exchangeRate, "Enter a valid exchange rate.");
+    }
+  }
+
   // ---- Warnings (download is still allowed) ----
   if (ctx.duplicateNumber)
     warn(
@@ -176,11 +357,6 @@ export function validateInvoice(
     );
 
   if (inv.docType === "tax_invoice") {
-    const rules = checkGstNumberRules(inv.number);
-    if (rules.tooLong)
-      warn(fieldId.number, "GST rules allow at most 16 characters in a tax invoice number.");
-    if (rules.invalidChars)
-      warn(fieldId.number, "GST invoice numbers may only contain letters, digits, “-” and “/”.");
     if (!inv.seller.gstin.trim())
       hint(fieldId.sellerGstin, "A tax invoice normally shows your GSTIN.");
     if (inv.gstMode === "single")
@@ -207,18 +383,64 @@ export function validateInvoice(
     }
   }
 
-  if (meta.hasTax && inv.gstMode === "split" && inv.supplyType === "auto") {
-    if (!sellerStateCode(inv.seller))
+  const sellerState = sellerStateCode(inv.seller);
+  const pos = resolvePlaceOfSupply(inv);
+  // Tax invoices get a blocking error above; other taxed documents only a hint.
+  if (
+    hasTax &&
+    inv.docType !== "tax_invoice" &&
+    inv.gstMode === "split" &&
+    inv.supplyType === "auto"
+  ) {
+    if (!sellerState)
       hint(
         fieldId.sellerState,
         "Add your state so CGST/SGST vs IGST can be decided (assuming same-state).",
       );
-    else if (!resolvePlaceOfSupply(inv))
+    else if (!pos)
       hint(
         fieldId.placeOfSupply,
         "Add the place of supply (customer state); assuming same-state supply.",
       );
   }
 
+  // A manual Same state / Inter-state choice that contradicts the place of supply (B7).
+  // SEZ supplies are always inter-state, so a manual "Inter-state" is right for them. Single-GST
+  // documents ignore the manual choice, so there is nothing to contradict.
+  const zeroRatedWithPayment = isZeroRatedWithPayment(inv.docType, {
+    exportType: inv.exportDetails.type,
+    sez: inv.sez,
+  });
+  if (
+    hasTax &&
+    inv.gstMode === "split" &&
+    inv.supplyType !== "auto" &&
+    sellerState &&
+    pos &&
+    !inv.sez.enabled &&
+    !zeroRatedWithPayment
+  ) {
+    const expected = sellerState === pos ? "intra" : "inter";
+    if (inv.supplyType !== expected)
+      warn(
+        fieldId.supplyType,
+        expected === "inter"
+          ? `Your state (${stateName(sellerState)}) and the place of supply (${stateName(pos)}) differ, so this is normally IGST — not CGST + SGST.`
+          : `Your state and the place of supply are both ${stateName(pos)}, so this is normally CGST + SGST — not IGST.`,
+      );
+  }
+
   return { errors, warnings };
+}
+
+/**
+ * Amount received above the grand total ("" when there is none). The totals
+ * engine caps "received" at the total; the excess is an advance (B13).
+ */
+export function overpayment(inv: Invoice, totals: InvoiceTotals): string {
+  if (!DOC_TYPE_META[inv.docType].hasPayment) return "";
+  const raw = inv.payment.amountReceived.trim();
+  if (!raw || !isValidDecimal(raw, { maxDecimals: totals.precision })) return "";
+  const excess = toDec(raw).minus(toDec(totals.grandTotal));
+  return excess.greaterThan(0) ? excess.toFixed(totals.precision) : "";
 }

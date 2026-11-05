@@ -7,10 +7,10 @@ import { useShallow } from "zustand/react/shallow";
 import { currencyPrecision, currencySymbol } from "@/lib/currency";
 import { DOC_TYPE_META, PAYMENT_MODE_LABELS } from "@/lib/documents";
 import { formatMoney } from "@/lib/format";
-import { formatRate, halfRate, sellerStateCode, stateTaxLabel } from "@/lib/gst/tax";
+import { formatRate, halfRate, invoiceHasTax, sellerStateCode, stateTaxLabel } from "@/lib/gst/tax";
 import { toDec } from "@/lib/money";
 import { PAYMENT_MODES, type GstMode, type PaymentMode, type SupplyType } from "@/lib/schema";
-import { fieldId } from "@/lib/validation";
+import { fieldId, overpayment } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import { useEditor } from "@/stores/editor-store";
 import { Badge } from "@/components/ui/badge";
@@ -42,16 +42,24 @@ export function SummarySection() {
       supplyType: s.invoice!.supplyType,
       roundOff: s.invoice!.roundOff,
       seller: s.invoice!.seller,
+      // Exports and SEZ supplies with payment carry IGST, whatever the document type.
+      hasTax: invoiceHasTax(s.invoice!),
+      sez: s.invoice!.sez.enabled,
     })),
   );
+  // Received above the total: the totals cap it, so say what happened to the rest (B13).
+  const excess = useEditor((s) => (s.totals ? overpayment(s.invoice!, s.totals) : ""));
   const patch = useEditor((s) => s.patch);
   const discountIssue = useFieldIssue(fieldId.invoiceDiscount);
   const modeIssue = useFieldIssue("field-gst-mode");
+  const supplyIssue = useFieldIssue(fieldId.supplyType);
   const [advanced, setAdvanced] = useState(
     Boolean(inv.invoiceDiscount.value) || inv.pricesIncludeGst || inv.supplyType !== "auto",
   );
+  // A contradicting Same state / Inter-state choice opens the panel so the warning is seen.
+  const advancedOpen = advanced || Boolean(supplyIssue.warning);
   const money = (v: string) => formatMoney(v, inv.currency, settings.formats.numberGrouping);
-  const hasTax = DOC_TYPE_META[inv.docType].hasTax;
+  const hasTax = inv.hasTax;
   const stateTax = stateTaxLabel(sellerStateCode(inv.seller));
   const kindLabel =
     totals.taxKind === "intra"
@@ -120,20 +128,25 @@ export function SummarySection() {
             className="text-xl font-semibold tracking-[-0.02em]"
           />
         </div>
+        {excess && (
+          <p className="pt-1 text-xs text-warning-foreground" role="status">
+            Received {money(excess)} more than the total — record the excess as an advance.
+          </p>
+        )}
       </div>
 
       <button
         type="button"
-        onClick={() => setAdvanced((a) => !a)}
-        aria-expanded={advanced}
+        onClick={() => setAdvanced(!advancedOpen)}
+        aria-expanded={advancedOpen}
         className="mt-4 flex w-full items-center justify-between rounded-lg px-1 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:focus-ring"
       >
         Discount, tax & rounding
         <ChevronDown
-          className={cn("size-4 transition-transform duration-200", advanced && "rotate-180")}
+          className={cn("size-4 transition-transform duration-200", advancedOpen && "rotate-180")}
         />
       </button>
-      <Collapse open={advanced}>
+      <Collapse open={advancedOpen}>
         <div className="mt-2 grid gap-3 rounded-xl border border-border bg-surface-2/40 p-3 sm:p-4">
           <Field
             label="Invoice discount"
@@ -169,10 +182,12 @@ export function SummarySection() {
                   ]}
                 />
               </Field>
-              {inv.gstMode === "split" && (
+              {inv.gstMode === "split" && !inv.sez && (
                 <Field
                   label="Supply type"
-                  hint="Auto compares your state with the place of supply. Pick Inter-state for SEZ customers — they always get IGST."
+                  id={fieldId.supplyType}
+                  warning={supplyIssue.warning}
+                  hint="Auto compares your state with the place of supply. For SEZ customers, turn on “Supply to an SEZ” under GST details."
                 >
                   <Segmented<SupplyType>
                     fullWidth
@@ -264,7 +279,12 @@ export function PaymentSection() {
     >
       <div className="grid gap-2.5 sm:gap-3">
         <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
-          <Field label="Amount received" id={fieldId.amountReceived} error={issue.error}>
+          <Field
+            label="Amount received"
+            id={fieldId.amountReceived}
+            error={issue.error}
+            warning={issue.warning}
+          >
             <DecimalInput
               value={payment.amountReceived}
               onValueChange={(v) => patchPayment({ amountReceived: v })}

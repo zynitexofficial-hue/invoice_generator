@@ -2,17 +2,26 @@
 
 /* eslint-disable @next/next/no-img-element -- data URLs from local uploads */
 
-import { AlertCircle, Building, Check, GitMerge, RotateCcw, Save, UserPlus, UserRound, X } from "lucide-react";
+import {
+  AlertCircle,
+  Building,
+  Check,
+  GitMerge,
+  RotateCcw,
+  Save,
+  UserPlus,
+  UserRound,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { useCustomers } from "@/db/hooks";
 import { saveCustomer } from "@/db/records";
 import { updateSettings } from "@/db/settings";
-import { DOC_TYPE_META } from "@/lib/documents";
 import { checkGstin, normalizeGstin, stateFromGstin, PAN_PATTERN } from "@/lib/gst/gstin";
 import { stateLabel } from "@/lib/gst/states";
-import { customerStateCode, isIndia, sellerStateCode } from "@/lib/gst/tax";
+import { customerStateCode, invoiceHasTax, isIndia, sellerStateCode } from "@/lib/gst/tax";
 import { toInvoiceCustomer } from "@/lib/invoice-factory";
 import type { InvoiceCustomer, Seller } from "@/lib/schema";
 import { fieldId } from "@/lib/validation";
@@ -76,7 +85,9 @@ export function SellerSection() {
       collapsible
       defaultOpen={!filled}
       done={filled}
-      hasIssue={Boolean(nameIssue.error || gstinIssue.warning || stateIssue.warning)}
+      hasIssue={Boolean(
+        nameIssue.error || gstinIssue.warning || stateIssue.warning || stateIssue.error,
+      )}
       fields={[fieldId.sellerName, fieldId.sellerGstin, fieldId.sellerPan, fieldId.sellerState]}
       summary={[seller.name, seller.gstin].filter(Boolean).join(" · ") || "Your business details"}
     >
@@ -116,6 +127,7 @@ export function SellerSection() {
           <Field
             label="State"
             id={fieldId.sellerState}
+            error={stateIssue.error}
             warning={stateIssue.warning}
             className="col-span-2 sm:col-span-1"
           >
@@ -206,10 +218,12 @@ export function SellerSection() {
           {/* Signature pill or link */}
           {seller.signature && !signatureOpen ? (
             <div className="inline-flex h-7 items-center gap-1.5 rounded-full border border-border bg-surface-2/80 px-2 text-xs font-medium text-foreground">
-              <img src={seller.signature} alt="" className="size-4 rounded bg-white/60 object-contain" />
-              <span>
-                Signature{seller.signatoryName ? ` (${seller.signatoryName})` : ""}
-              </span>
+              <img
+                src={seller.signature}
+                alt=""
+                className="size-4 rounded bg-white/60 object-contain"
+              />
+              <span>Signature{seller.signatoryName ? ` (${seller.signatoryName})` : ""}</span>
               <button
                 type="button"
                 onClick={() => setSignatureOpen(true)}
@@ -310,7 +324,7 @@ export function SellerSection() {
                   patchSeller({ pan: e.target.value.toUpperCase().replace(/\s/g, "") })
                 }
                 maxLength={10}
-                className="font-mono uppercase tracking-wide"
+                className="font-mono tracking-wide uppercase"
                 placeholder="ABCDE1234F"
                 spellCheck={false}
               />
@@ -403,10 +417,10 @@ const EMPTY_CUSTOMER: InvoiceCustomer = {
 export function CustomerSection() {
   const customers = useCustomers() ?? [];
   const customer = useEditor((s) => s.invoice!.customer);
-  const { docType, gstMode, placeOfSupply, seller } = useEditor(
+  const { hasTax, sez, placeOfSupply, seller } = useEditor(
     useShallow((s) => ({
-      docType: s.invoice!.docType,
-      gstMode: s.invoice!.gstMode,
+      hasTax: invoiceHasTax(s.invoice!),
+      sez: s.invoice!.sez.enabled,
       placeOfSupply: s.invoice!.placeOfSupply,
       seller: s.invoice!.seller as Seller,
     })),
@@ -416,13 +430,15 @@ export function CustomerSection() {
   const nameIssue = useFieldIssue(fieldId.customerName);
   const gstinIssue = useFieldIssue(fieldId.customerGstin);
   const posIssue = useFieldIssue(fieldId.placeOfSupply);
+  const addressIssue = useFieldIssue(fieldId.customerAddress);
+  const stateIssue = useFieldIssue(fieldId.customerState);
   // Optional groups stay behind "+ Add" links, but open whenever they hold data or a problem.
   const [show, setShow] = useState(HIDDEN_GROUPS);
   const reveal = (key: keyof typeof HIDDEN_GROUPS) => setShow((v) => ({ ...v, [key]: true }));
   const companyOpen = show.company || Boolean(customer.company);
   const contactOpen = show.contact || Boolean(customer.email || customer.phone);
   const shipOpen = show.ship || Boolean(customer.shippingAddress);
-  const posOpen = show.pos || Boolean(placeOfSupply) || Boolean(posIssue.warning);
+  const posOpen = show.pos || Boolean(placeOfSupply) || Boolean(posIssue.warning || posIssue.error);
   useRevealOn([fieldId.placeOfSupply], () => reveal("pos"));
   const [saving, setSaving] = useState(false);
   const linked = customers.find((c) => c.id === customer.customerId);
@@ -430,7 +446,9 @@ export function CustomerSection() {
   const isSkipped = Boolean(linked && skippedForCustomerId === customer.customerId);
 
   const india = isIndia(customer.country);
-  const showPos = DOC_TYPE_META[docType].hasTax && gstMode === "split";
+  // Exports and SEZ supplies with payment carry IGST, so they get a place of supply too. Single-GST
+  // documents still need it: returns split the tax into IGST or CGST + SGST from it.
+  const showPos = hasTax;
 
   const setGstin = (raw: string) => {
     const gstin = normalizeGstin(raw);
@@ -451,6 +469,8 @@ export function CustomerSection() {
         "phone",
         "billingAddress",
         "shippingAddress",
+        "city",
+        "pincode",
         "stateCode",
         "country",
         "gstin",
@@ -539,8 +559,13 @@ export function CustomerSection() {
   const autoPos = customerStateCode(customer);
   const sellerState = sellerStateCode(seller);
   const effectivePos = placeOfSupply || autoPos;
-  const taxResult =
-    sellerState && effectivePos ? (effectivePos === sellerState ? "CGST + SGST" : "IGST") : "";
+  const taxResult = sez
+    ? "IGST (SEZ)"
+    : sellerState && effectivePos
+      ? effectivePos === sellerState
+        ? "CGST + SGST"
+        : "IGST"
+      : "";
 
   return (
     <EditorSection
@@ -618,7 +643,8 @@ export function CustomerSection() {
               </Button>
             </div>
             <p className="text-xs leading-normal text-muted-foreground">
-              These details differ from the saved profile for <strong>{linked.name}</strong>. Choose what to do with these changes:
+              These details differ from the saved profile for <strong>{linked.name}</strong>. Choose
+              what to do with these changes:
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-0.5">
               <Button
@@ -639,11 +665,7 @@ export function CustomerSection() {
                 <GitMerge className="mr-1 size-3.5" />
                 Merge with {linked.name}
               </Button>
-              <Button
-                size="xs"
-                variant="ghost"
-                onClick={handleSkipChange}
-              >
+              <Button size="xs" variant="ghost" onClick={handleSkipChange}>
                 Skip change (this invoice only)
               </Button>
             </div>
@@ -681,7 +703,7 @@ export function CustomerSection() {
             />
           </Field>
         </Collapse>
-        <Field label="Billing address">
+        <Field label="Billing address" id={fieldId.customerAddress} error={addressIssue.error}>
           <Textarea
             value={customer.billingAddress}
             onChange={(e) => patchCustomer({ billingAddress: e.target.value })}
@@ -690,8 +712,38 @@ export function CustomerSection() {
           />
         </Field>
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+          <Field label="City" optional className={india ? undefined : "col-span-2"}>
+            <Input
+              value={customer.city}
+              onChange={(e) => patchCustomer({ city: e.target.value.slice(0, 80) })}
+              maxLength={80}
+              autoComplete="address-level2"
+            />
+          </Field>
           {india && (
-            <Field label="State">
+            <Field
+              label="PIN code"
+              optional
+              warning={
+                customer.pincode && customer.pincode.length !== 6
+                  ? "PIN codes have 6 digits."
+                  : undefined
+              }
+            >
+              <Input
+                value={customer.pincode}
+                onChange={(e) =>
+                  patchCustomer({ pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })
+                }
+                inputMode="numeric"
+                maxLength={6}
+                autoComplete="postal-code"
+                className="tabular"
+              />
+            </Field>
+          )}
+          {india && (
+            <Field label="State" id={fieldId.customerState} error={stateIssue.error}>
               <StateSelect
                 value={customer.stateCode}
                 onChange={(code) => patchCustomer({ stateCode: code })}
@@ -713,6 +765,7 @@ export function CustomerSection() {
             <Field
               label="Place of supply"
               id={fieldId.placeOfSupply}
+              error={posIssue.error}
               warning={posIssue.warning}
               hint={taxResult ? `→ ${taxResult}` : "Decides CGST + SGST or IGST."}
             >
@@ -789,7 +842,11 @@ export function CustomerSection() {
         </Collapse>
 
         {/* Optional fields and the save action share one row to keep the card short. */}
-        {(!companyOpen || !contactOpen || !shipOpen || !linked || (changedFromSaved && isSkipped)) && (
+        {(!companyOpen ||
+          !contactOpen ||
+          !shipOpen ||
+          !linked ||
+          (changedFromSaved && isSkipped)) && (
           <div className="flex flex-wrap items-center gap-1.5">
             {!companyOpen && <AddFieldLink onClick={() => reveal("company")}>Company</AddFieldLink>}
             {!contactOpen && (

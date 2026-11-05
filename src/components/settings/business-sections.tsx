@@ -22,6 +22,8 @@ import { Segmented } from "@/components/ui/segmented";
 import { SwitchRow } from "@/components/ui/switch";
 import type { SettingsUpdate } from "./use-settings-draft";
 
+const UDYAM_PATTERN = /^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/;
+
 interface SectionProps {
   draft: AppSettings;
   update: SettingsUpdate;
@@ -32,6 +34,8 @@ export function BusinessSection({ draft, update }: SectionProps) {
   const set = (partial: Partial<Seller>) => update("profile", (prev) => ({ ...prev, ...partial }));
   const gstin = p.gstin ? checkGstin(p.gstin) : null;
   const panInvalid = p.pan && !PAN_PATTERN.test(p.pan);
+  const pinInvalid = Boolean(p.pincode) && !/^\d{6}$/.test(p.pincode);
+  const udyamInvalid = Boolean(p.udyam) && !UDYAM_PATTERN.test(p.udyam);
 
   return (
     <div className="space-y-4">
@@ -58,7 +62,7 @@ export function BusinessSection({ draft, update }: SectionProps) {
               />
             </Field>
           </div>
-          <Field label="Address">
+          <Field label="Address" hint="Street, building and area. City and PIN go below.">
             <Textarea
               value={p.address}
               onChange={(e) => set({ address: e.target.value })}
@@ -67,6 +71,30 @@ export function BusinessSection({ draft, update }: SectionProps) {
               autoComplete="street-address"
             />
           </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="City" optional>
+              <Input
+                value={p.city}
+                onChange={(e) => set({ city: e.target.value })}
+                maxLength={80}
+                autoComplete="address-level2"
+              />
+            </Field>
+            <Field
+              label="PIN code"
+              optional
+              warning={pinInvalid ? "PIN codes have 6 digits." : undefined}
+            >
+              <Input
+                value={p.pincode}
+                onChange={(e) => set({ pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })}
+                inputMode="numeric"
+                maxLength={6}
+                autoComplete="postal-code"
+                className="tabular"
+              />
+            </Field>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
               label="State"
@@ -140,6 +168,46 @@ export function BusinessSection({ draft, update }: SectionProps) {
               onChange={(e) => set({ pan: e.target.value.toUpperCase().replace(/\s/g, "") })}
               maxLength={10}
               className="font-mono tracking-wide uppercase"
+              spellCheck={false}
+            />
+          </Field>
+          <Field
+            label="Legal name"
+            optional
+            hint="As on your PAN / GST certificate, if different from the business name. Printed on documents."
+          >
+            <Input
+              value={p.legalName}
+              onChange={(e) => set({ legalName: e.target.value })}
+              maxLength={160}
+            />
+          </Field>
+          <Field
+            label="Trade name"
+            optional
+            hint="The name on your GST certificate's “Trade name” line, if you use one."
+          >
+            <Input
+              value={p.tradeName}
+              onChange={(e) => set({ tradeName: e.target.value })}
+              maxLength={160}
+            />
+          </Field>
+          <Field
+            label="Udyam number"
+            optional
+            className="sm:col-span-2"
+            warning={udyamInvalid ? "Udyam numbers look like UDYAM-MH-19-0012345." : undefined}
+            hint="MSME registration. Printed on documents. Buyers must pay registered micro and small businesses within 45 days."
+          >
+            <Input
+              value={p.udyam}
+              onChange={(e) =>
+                set({ udyam: e.target.value.toUpperCase().replace(/\s/g, "").slice(0, 30) })
+              }
+              maxLength={30}
+              placeholder="UDYAM-MH-19-0012345"
+              className="font-mono tracking-wide uppercase sm:max-w-sm"
               spellCheck={false}
             />
           </Field>

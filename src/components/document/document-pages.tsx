@@ -17,6 +17,7 @@ import type { DesignCustomization, SectionId, TemplateId } from "@/lib/schema";
 import { fontStack } from "@/lib/templates-meta";
 import { useMounted } from "@/hooks/use-mounted";
 import {
+  CancelledStamp,
   EmptyRow,
   NotesSection,
   PageFooter,
@@ -221,6 +222,7 @@ export function DocumentPages({
           </div>
         ))}
         <PageFooter pageIndex={index} pageCount={pageCount} />
+        <CancelledStamp />
       </div>
     );
     return (

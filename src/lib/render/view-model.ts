@@ -17,11 +17,58 @@ import {
 import { toDec } from "@/lib/money";
 import {
   isNoteDocType,
+  NOTE_REASON_LABELS,
   type DateFormatId,
   type DesignCustomization,
   type Invoice,
 } from "@/lib/schema";
 import { resolvePaymentQr } from "@/lib/payment-qr";
+
+export const REVERSE_CHARGE_STATEMENT = "Tax payable on reverse charge: Yes";
+export const EXPORT_WITH_PAYMENT_DECLARATION =
+  "Supply meant for export on payment of integrated tax (IGST).";
+export const SEZ_WITH_PAYMENT_DECLARATION =
+  "Supply meant for SEZ unit/developer on payment of integrated tax (IGST).";
+export const SEZ_UNDER_LUT_DECLARATION =
+  "Supply meant for SEZ unit/developer under Letter of Undertaking without payment of integrated tax.";
+
+/** A declaration written for supplies under LUT (stale once the supply is "with payment"). */
+const mentionsLut = (text: string) => /\b(LUT|undertaking|bond|without payment)\b/i.test(text);
+
+/**
+ * The export/SEZ declaration to print. Under LUT: the document's declaration
+ * text plus the LUT number (when the text doesn't already carry it). With
+ * payment: the IGST statement, replacing an LUT-style text left over from a
+ * default.
+ */
+export function zeroRatedDeclaration(
+  invoice: Pick<Invoice, "docType" | "declaration" | "exportDetails" | "sez">,
+): string {
+  const text = invoice.declaration.trim();
+  const lut = invoice.exportDetails.lutNumber.trim();
+  const withLut = (t: string) => (lut && !t.includes(lut) ? `${t} LUT/Bond No: ${lut}`.trim() : t);
+  if (invoice.docType === "export") {
+    if (invoice.exportDetails.type === "wpay")
+      return text && !mentionsLut(text) ? text : EXPORT_WITH_PAYMENT_DECLARATION;
+    return withLut(text);
+  }
+  if (invoice.sez.enabled) {
+    if (invoice.sez.withPayment)
+      return text && !mentionsLut(text) ? text : SEZ_WITH_PAYMENT_DECLARATION;
+    return withLut(text || SEZ_UNDER_LUT_DECLARATION);
+  }
+  return text;
+}
+
+/** "Mumbai - 400069", leaving out parts the address text already contains. */
+function cityLine(address: string, city: string, pincode: string): string {
+  const lower = address.toLowerCase();
+  const c = city.trim();
+  const pin = pincode.trim();
+  return [c && !lower.includes(c.toLowerCase()) ? c : "", pin && !address.includes(pin) ? pin : ""]
+    .filter(Boolean)
+    .join(" - ");
+}
 
 export type ColumnKey = "index" | "item" | "hsn" | "qty" | "price" | "discount" | "tax" | "amount";
 
@@ -137,12 +184,19 @@ export interface DocViewModel {
   schedule: ScheduleView | null;
   payment: PaymentView | null;
   paymentStatus: "unpaid" | "partial" | "paid" | null;
-  stamp: "PAID" | "PARTIALLY PAID" | null;
+  /** CANCELLED always shows; PAID / PARTIALLY PAID follow design.show.statusStamp. */
+  stamp: "PAID" | "PARTIALLY PAID" | "CANCELLED" | null;
+  cancelled: boolean;
+  cancelReason: string;
+  /** Credit/debit notes: the reason in words ("" otherwise). */
+  noteReason: string;
   received: string;
   receivedNote: string;
   notes: string;
   terms: string;
   declaration: string;
+  /** Legal statements printed with the declaration (reverse charge, export/SEZ). */
+  statements: string[];
   footer: string;
   hasPaymentInfo: boolean;
 }
@@ -209,6 +263,12 @@ export function buildViewModel(
   if (sellerState && isIndia(seller.country))
     // The seller's GSTIN already carries the state code, so only the name is shown.
     sellerTax.push({ label: "State", value: stateName(sellerState) });
+  const sameName = (a: string) => a.trim().toLowerCase() === seller.name.trim().toLowerCase();
+  if (seller.legalName.trim() && !sameName(seller.legalName))
+    sellerTax.unshift({ label: "Legal name", value: seller.legalName.trim() });
+  if (seller.tradeName.trim() && !sameName(seller.tradeName))
+    sellerTax.unshift({ label: "Trade name", value: seller.tradeName.trim() });
+  if (seller.udyam.trim()) sellerTax.push({ label: "Udyam", value: seller.udyam.trim() });
 
   const customer = invoice.customer;
   const customerTax: LabelValue[] = [];
@@ -220,8 +280,12 @@ export function buildViewModel(
     customerTax.push({ label: "State", value: stateText(custState) });
 
   const sellerAddress = lines(seller.address);
+  const sellerCity = cityLine(seller.address, seller.city, seller.pincode);
+  if (sellerCity) sellerAddress.push(sellerCity);
   if (!isIndia(seller.country) && seller.country.trim()) sellerAddress.push(seller.country.trim());
   const customerAddress = lines(customer.billingAddress);
+  const customerCity = cityLine(customer.billingAddress, customer.city, customer.pincode);
+  if (customerCity) customerAddress.push(customerCity);
   if (customer.country.trim() && !isIndia(customer.country))
     customerAddress.push(customer.country.trim());
   const shipTo = lines(customer.shippingAddress);
@@ -240,6 +304,27 @@ export function buildViewModel(
       ? `${invoice.note.originalInvoiceNumber.trim()} dated ${date(invoice.note.originalInvoiceDate)}`
       : invoice.note.originalInvoiceNumber.trim();
     metaRows.push({ label: "Against invoice", value: original });
+  }
+  const noteReason =
+    isNoteDocType(invoice.docType) && invoice.note.reason
+      ? NOTE_REASON_LABELS[invoice.note.reason]
+      : "";
+  if (noteReason) metaRows.push({ label: "Reason", value: noteReason });
+  if (invoice.docType === "export") {
+    const ex = invoice.exportDetails;
+    if (ex.shippingBillNo.trim())
+      metaRows.push({
+        label: "Shipping bill",
+        value: ex.shippingBillDate
+          ? `${ex.shippingBillNo.trim()} dated ${date(ex.shippingBillDate)}`
+          : ex.shippingBillNo.trim(),
+      });
+    if (ex.portCode.trim()) metaRows.push({ label: "Port code", value: ex.portCode.trim() });
+    if (invoice.currency !== "INR" && toDec(ex.exchangeRate).greaterThan(0))
+      metaRows.push({
+        label: "Exchange rate",
+        value: `1 ${invoice.currency} = ₹${ex.exchangeRate.trim()}`,
+      });
   }
   if (invoice.referenceNo.trim())
     metaRows.push({ label: "Reference", value: invoice.referenceNo.trim() });
@@ -502,12 +587,18 @@ export function buildViewModel(
 
   /* ---------------- Status ---------------- */
   const paymentStatus = meta.hasPayment ? t.paymentStatus : null;
-  const stamp =
-    show.statusStamp && paymentStatus === "paid"
+  const cancelled = invoice.status === "cancelled";
+  // A cancelled document always says so, whatever the design hides.
+  const stamp: DocViewModel["stamp"] = cancelled
+    ? "CANCELLED"
+    : show.statusStamp && paymentStatus === "paid"
       ? "PAID"
       : show.statusStamp && paymentStatus === "partial"
         ? "PARTIALLY PAID"
         : null;
+  const statements: string[] = [];
+  // Reverse charge applies to GST documents only (not bills of supply or non-GST invoices).
+  if (invoice.reverseCharge && meta.hasTax) statements.push(REVERSE_CHARGE_STATEMENT);
   const receivedNote = received
     ? [
         invoice.payment.date ? `on ${date(invoice.payment.date)}` : "",
@@ -567,11 +658,15 @@ export function buildViewModel(
     payment,
     paymentStatus,
     stamp,
+    cancelled,
+    cancelReason: cancelled ? invoice.cancelReason.trim() : "",
+    noteReason,
     received: received ? money(t.amountReceived) : "",
     receivedNote,
     notes: show.notes ? invoice.notes.trim() : "",
     terms: show.terms ? invoice.terms.trim() : "",
-    declaration: invoice.declaration.trim(),
+    declaration: zeroRatedDeclaration(invoice),
+    statements,
     footer: show.footer ? invoice.footer.trim() : "",
     hasPaymentInfo: Boolean(payment),
   };

@@ -2,7 +2,6 @@
 
 import {
   ArrowLeft,
-  Ban,
   Braces,
   Copy,
   Download,
@@ -13,12 +12,10 @@ import {
   Palette,
   PenLine,
   Search,
-  Trash,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useShallow } from "zustand/react/shallow";
 import { toast } from "sonner";
 import { exportInvoiceFile } from "@/db/backup";
 import { useDesigns, useSettings } from "@/db/hooks";
@@ -40,17 +37,12 @@ import { usePalette } from "@/components/layout/command-palette";
 import { SavedDesigns } from "@/components/design/saved-designs";
 import { StorageBanner } from "@/components/storage/storage-guard";
 import { Button } from "@/components/ui/button";
-import {
-  canCancel,
-  canDelete,
-  confirmCancel,
-  confirmDelete,
-} from "@/components/document-lifecycle";
+import { confirmCancel, confirmDelete } from "@/components/document-lifecycle";
+import { Alert } from "@/components/ui/alert";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
@@ -59,7 +51,15 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { DocumentSection } from "./document-section";
 import { EditorProvider, useEditorContext } from "./editor-context";
+import { GstDetailsSection } from "./gst-details-section";
 import { ItemsSection } from "./items-section";
+import {
+  confirmIssue,
+  filedOnText,
+  filingPeriodText,
+  LifecycleMenuItems,
+  useLifecycle,
+} from "./lifecycle";
 import { CustomerSection, SellerSection } from "./parties-section";
 import { PaymentDetailsSection } from "./payment-details-section";
 import { PaymentTermsSection } from "./payment-terms-section";
@@ -313,9 +313,11 @@ function Editor({ settings }: { settings: AppSettings }) {
 function ContentForm() {
   return (
     <>
+      <LifecycleBanner />
       <DocumentSection />
       <SellerSection />
       <CustomerSection />
+      <GstDetailsSection />
       <ItemsSection />
       <SummarySection />
       <PaymentTermsSection />
@@ -323,6 +325,29 @@ function ContentForm() {
       <PaymentSection />
       <NotesSection />
     </>
+  );
+}
+
+/** Cancelled / filed-period notices at the top of the form (A2, B3). */
+function LifecycleBanner() {
+  const { settings } = useEditorContext();
+  const invoice = useEditor((s) => s.invoice!);
+  const lc = useLifecycle(invoice, settings);
+  if (invoice.status === "cancelled") {
+    return (
+      <Alert tone="danger" title="This document is cancelled">
+        It stays in your records and number series, and prints with a CANCELLED stamp.
+        {invoice.cancelReason ? ` Reason: ${invoice.cancelReason}` : ""}
+      </Alert>
+    );
+  }
+  if (!lc.filedBy) return null;
+  return (
+    <Alert tone="warning" title="Return already filed">
+      This period&apos;s {filingPeriodText(lc.filedBy)} is marked filed
+      {filedOnText(lc.filedBy, settings)}. Changes need GSTR-1A or a later return — prefer a
+      credit/debit note.
+    </Alert>
   );
 }
 
@@ -369,13 +394,9 @@ function Toolbar({
   const number = useEditor((s) => s.invoice!.number);
   const docType = useEditor((s) => s.invoice!.docType);
   const persisted = useEditor((s) => s.persisted);
-  const lifecycle = useEditor(
-    useShallow((s) => ({
-      deletable: canDelete(s.invoice!),
-      cancellable: canCancel(s.invoice!),
-    })),
-  );
+  const invoice = useEditor((s) => s.invoice!);
   const { settings } = useEditorContext();
+  const lifecycle = useLifecycle(invoice, settings);
   const total = useEditor((s) => s.totals?.grandTotal ?? "0");
   const currency = useEditor((s) => s.invoice!.currency);
 
@@ -414,6 +435,16 @@ function Toolbar({
     const inv = useEditor.getState().invoice;
     if (!inv) return;
     const saved = await confirmCancel(inv);
+    if (saved) useEditor.getState().markSaved(useEditor.getState().savedRevision, saved);
+  };
+
+  const issueDoc = async () => {
+    await flushSave();
+    const inv = useEditor.getState().invoice;
+    if (!inv) return;
+    // Show the problems inline too, in case the issue check below refuses.
+    if (useEditor.getState().validation.errors.length) useEditor.getState().setShowErrors(true);
+    const saved = await confirmIssue(inv, settings);
     if (saved) useEditor.getState().markSaved(useEditor.getState().savedRevision, saved);
   };
 
@@ -497,16 +528,19 @@ function Toolbar({
               <DropdownMenuItem icon={<Braces />} onSelect={() => void exportFile()}>
                 Save invoice file (.json)
               </DropdownMenuItem>
-              {(lifecycle.deletable || lifecycle.cancellable) && <DropdownMenuSeparator />}
-              {lifecycle.deletable ? (
-                <DropdownMenuItem icon={<Trash />} tone="danger" onSelect={() => void remove()}>
-                  Delete
-                </DropdownMenuItem>
-              ) : lifecycle.cancellable ? (
-                <DropdownMenuItem icon={<Ban />} tone="danger" onSelect={() => void cancelDoc()}>
-                  Cancel document
-                </DropdownMenuItem>
-              ) : null}
+              <LifecycleMenuItems
+                invoice={invoice}
+                lifecycle={lifecycle}
+                settings={settings}
+                onIssue={() => void issueDoc()}
+                onCancel={() => void cancelDoc()}
+                onDelete={() => void remove()}
+                onNavigate={(href) =>
+                  void flushSave().then(() => {
+                    onNavigate(href);
+                  })
+                }
+              />
             </DropdownMenuContent>
           </DropdownMenu>
           {isDesktop && (

@@ -57,6 +57,8 @@ const EMPTY: Draft = {
   phone: "",
   billingAddress: "",
   shippingAddress: "",
+  city: "",
+  pincode: "",
   stateCode: "",
   country: "India",
   gstin: "",
@@ -360,6 +362,31 @@ function CustomerForm({ initial, onClose }: { initial: Draft; onClose: () => voi
               maxLength={500}
             />
           </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="City" optional className={india ? undefined : "col-span-2"}>
+              <Input
+                value={form.city ?? ""}
+                onChange={(e) => set({ city: e.target.value })}
+                maxLength={80}
+              />
+            </Field>
+            {india && (
+              <Field
+                label="PIN code"
+                optional
+                warning={
+                  form.pincode && form.pincode.length !== 6 ? "PIN codes have 6 digits." : undefined
+                }
+              >
+                <Input
+                  value={form.pincode ?? ""}
+                  onChange={(e) => set({ pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })}
+                  inputMode="numeric"
+                  maxLength={6}
+                />
+              </Field>
+            )}
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Country">
               <Input

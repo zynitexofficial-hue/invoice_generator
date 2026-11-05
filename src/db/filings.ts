@@ -1,14 +1,63 @@
 import { newId } from "@/lib/invoice-factory";
+import { monthKey, quarterKey } from "@/lib/period";
 import {
   filingId,
   filingSchema,
   returnSnapshotSchema,
+  type AppSettings,
   type Filing,
   type ReturnSnapshot,
 } from "@/lib/schema";
 import { diffFields, logAudit, type AuditFields } from "./audit";
 import { getDb } from "./db";
+import { readTable } from "./read";
 import { guardedWrite } from "./write";
+
+/* ---------------- Filed periods ---------------- */
+
+export type FilingFrequency = AppSettings["gst"]["filingFrequency"];
+
+/**
+ * The filing row that "locks" a document date: GSTR-1 marked filed for the
+ * month (monthly filers) or the FY quarter (QRMP) containing the date. QRMP
+ * filers who reported the month's invoices through a filed IFF are locked too.
+ * Pure — pass the filing rows you already have (e.g. from useFilings()).
+ */
+export function filedPeriodFor(
+  filings: readonly Filing[],
+  dateISO: string,
+  frequency: FilingFrequency,
+): Filing | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) return undefined;
+  const wanted =
+    frequency === "qrmp"
+      ? [filingId(quarterKey(dateISO), "GSTR-1"), filingId(monthKey(dateISO), "IFF")]
+      : [filingId(monthKey(dateISO), "GSTR-1")];
+  return filings.find((f) => f.status === "filed" && wanted.includes(f.id));
+}
+
+/** The filed GSTR-1 (or IFF) covering a date, read from the database. */
+export async function getFiledPeriodForDate(
+  dateISO: string,
+  frequency: FilingFrequency,
+): Promise<Filing | undefined> {
+  const { rows } = await readTable("filings");
+  return filedPeriodFor(rows, dateISO, frequency);
+}
+
+/**
+ * Whether the GSTR-1 for the month (monthly) or FY quarter (QRMP) containing
+ * `dateISO` is marked filed. Documents dated in a filed period can't be
+ * cancelled — correct them with a credit/debit note instead.
+ */
+export async function isPeriodFiledForDate(
+  dateISO: string,
+  frequency: FilingFrequency,
+): Promise<boolean> {
+  return Boolean(await getFiledPeriodForDate(dateISO, frequency));
+}
+
+/* ---------------- Tracker rows ---------------- */
 
 export type FilingInput = Partial<Filing> & Pick<Filing, "periodKey" | "periodKind" | "returnType">;
 

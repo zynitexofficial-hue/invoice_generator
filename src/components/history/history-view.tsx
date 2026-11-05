@@ -3,7 +3,6 @@
 import {
   ArrowDown,
   ArrowUp,
-  Ban,
   Braces,
   ChevronLeft,
   ChevronRight,
@@ -15,34 +14,36 @@ import {
   Plus,
   ScrollText,
   Search,
-  Trash,
   Wallet,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { exportInvoiceFile } from "@/db/backup";
-import { useInvoices, useSettings } from "@/db/hooks";
-import {
-  canCancel,
-  canDelete,
-  confirmCancel,
-  confirmDelete,
-} from "@/components/document-lifecycle";
+import { useFilings, useInvoices, useSettings } from "@/db/hooks";
+import { confirmCancel, confirmDelete } from "@/components/document-lifecycle";
 import { DOC_TYPE_META } from "@/lib/documents";
 import { formatDate, todayISO } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
 import { displayStatus, type DisplayStatus } from "@/lib/invoice-calc";
 import { toDec } from "@/lib/money";
-import { DOC_TYPES, type AppSettings, type DocType, type Invoice } from "@/lib/schema";
+import {
+  DOC_TYPES,
+  isNoteDocType,
+  type AppSettings,
+  type DocType,
+  type Filing,
+  type Invoice,
+} from "@/lib/schema";
 import { cn } from "@/lib/utils";
 import { Page } from "@/components/layout/page";
 import { OpenInvoiceFileButton } from "@/components/open-invoice-file";
 import { StatusBadge, STATUS_LABELS } from "@/components/status-badge";
 import { printInvoice } from "@/components/editor/use-download";
+import { confirmIssue, LifecycleMenuItems, lifecycleOf } from "@/components/editor/lifecycle";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -50,7 +51,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -64,6 +64,7 @@ const PAGE_SIZE = 15;
 export function HistoryView() {
   const invoices = useInvoices();
   const settings = useSettings();
+  const filings = useFilings();
   const router = useRouter();
   const today = todayISO();
   const [query, setQuery] = useState("");
@@ -71,6 +72,9 @@ export function HistoryView() {
   const [status, setStatus] = useState<DisplayStatus | "all">("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  // Quick filters: only credit/debit notes; cancelled documents are hidden unless asked for.
+  const [notesOnly, setNotesOnly] = useState(false);
+  const [showCancelled, setShowCancelled] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "updated",
     dir: "desc",
@@ -83,7 +87,9 @@ export function HistoryView() {
     const q = query.trim().toLowerCase();
     const filtered = invoices.filter((inv) => {
       if (type !== "all" && inv.docType !== type) return false;
+      if (notesOnly && !isNoteDocType(inv.docType)) return false;
       if (status !== "all" && displayStatus(inv, today) !== status) return false;
+      if (inv.status === "cancelled" && !showCancelled && status !== "cancelled") return false;
       if (from && inv.invoiceDate < from) return false;
       if (to && inv.invoiceDate > to) return false;
       if (q) {
@@ -117,7 +123,15 @@ export function HistoryView() {
       const vb = value(b);
       return va < vb ? -dir : va > vb ? dir : 0;
     });
-  }, [invoices, query, type, status, from, to, sort, today]);
+  }, [invoices, query, type, status, from, to, sort, today, notesOnly, showCancelled]);
+  const cancelledCount = useMemo(
+    () => (invoices ?? []).filter((i) => i.status === "cancelled").length,
+    [invoices],
+  );
+  const notesCount = useMemo(
+    () => (invoices ?? []).filter((i) => isNoteDocType(i.docType)).length,
+    [invoices],
+  );
 
   if (!invoices || !settings) {
     return (
@@ -131,13 +145,16 @@ export function HistoryView() {
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
   const visible = rows.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
-  const filtersActive = query || type !== "all" || status !== "all" || from || to;
+  const filtersActive =
+    query || type !== "all" || status !== "all" || from || to || notesOnly || showCancelled;
   const clearFilters = () => {
     setQuery("");
     setType("all");
     setStatus("all");
     setFrom("");
     setTo("");
+    setNotesOnly(false);
+    setShowCancelled(false);
     setPage(0);
   };
   const toggleSort = (key: SortKey) =>
@@ -281,6 +298,36 @@ export function HistoryView() {
               </Button>
             )}
           </div>
+          {(notesCount > 0 || cancelledCount > 0) && (
+            <div
+              className="-mt-1 mb-4 flex flex-wrap gap-2"
+              role="group"
+              aria-label="Quick filters"
+            >
+              {notesCount > 0 && (
+                <FilterChip
+                  active={notesOnly}
+                  onClick={() => {
+                    setNotesOnly((v) => !v);
+                    setPage(0);
+                  }}
+                >
+                  Notes ({notesCount})
+                </FilterChip>
+              )}
+              {cancelledCount > 0 && (
+                <FilterChip
+                  active={showCancelled}
+                  onClick={() => {
+                    setShowCancelled((v) => !v);
+                    setPage(0);
+                  }}
+                >
+                  Show cancelled ({cancelledCount})
+                </FilterChip>
+              )}
+            </div>
+          )}
 
           <Card className="overflow-hidden">
             {rows.length === 0 ? (
@@ -335,13 +382,24 @@ export function HistoryView() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.18 }}
-                            className="group cursor-pointer border-b border-border last:border-0 hover:bg-surface-2/60"
+                            className={cn(
+                              "group cursor-pointer border-b border-border last:border-0 hover:bg-surface-2/60",
+                              inv.status === "cancelled" &&
+                                "bg-surface-2/50 text-muted-foreground [&_td]:opacity-70",
+                            )}
                             onClick={() => router.push(`/invoice?id=${inv.id}`)}
                           >
                             <td className="px-4 py-3">
-                              <div className="font-medium tabular-nums">{inv.number || "—"}</div>
+                              <div
+                                className={cn(
+                                  "font-medium tabular-nums",
+                                  inv.status === "cancelled" && "line-through",
+                                )}
+                              >
+                                {inv.number || "—"}
+                              </div>
                               <div className="text-xs text-muted-foreground">
-                                {DOC_TYPE_META[inv.docType].shortLabel}
+                                <TypeLine invoice={inv} />
                               </div>
                             </td>
                             <td className="max-w-56 px-4 py-3">
@@ -387,7 +445,12 @@ export function HistoryView() {
                               />
                             </td>
                             <td className="px-2 py-3" onClick={(e) => e.stopPropagation()}>
-                              <RowActions invoice={inv} settings={settings} onPay={setPaying} />
+                              <RowActions
+                                invoice={inv}
+                                settings={settings}
+                                filings={filings ?? []}
+                                onPay={setPaying}
+                              />
                             </td>
                           </motion.tr>
                         ))}
@@ -399,7 +462,13 @@ export function HistoryView() {
                 {/* Mobile cards */}
                 <ul className="divide-y divide-border md:hidden">
                   {visible.map((inv) => (
-                    <li key={inv.id} className="flex items-start gap-3 px-4 py-3.5">
+                    <li
+                      key={inv.id}
+                      className={cn(
+                        "flex items-start gap-3 px-4 py-3.5",
+                        inv.status === "cancelled" && "bg-surface-2/50 opacity-70",
+                      )}
+                    >
                       <Link
                         href={`/invoice?id=${inv.id}`}
                         className="min-w-0 flex-1 rounded-lg focus-visible:focus-ring"
@@ -411,6 +480,9 @@ export function HistoryView() {
                         </div>
                         <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">
                           {inv.number} · {formatDate(inv.invoiceDate, settings.formats.dateFormat)}
+                          {isNoteDocType(inv.docType) && inv.note.originalInvoiceNumber && (
+                            <> · against {inv.note.originalInvoiceNumber}</>
+                          )}
                         </div>
                         <div className="mt-2 flex items-center gap-2">
                           <StatusBadge status={displayStatus(inv, today)} docType={inv.docType} />
@@ -423,7 +495,12 @@ export function HistoryView() {
                           </span>
                         </div>
                       </Link>
-                      <RowActions invoice={inv} settings={settings} onPay={setPaying} />
+                      <RowActions
+                        invoice={inv}
+                        settings={settings}
+                        filings={filings ?? []}
+                        onPay={setPaying}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -509,17 +586,57 @@ function SortHeader({
   );
 }
 
+/** "Tax Invoice", or "Credit Note · against INV/26-27/004" for notes. */
+function TypeLine({ invoice: inv }: { invoice: Invoice }) {
+  const label = DOC_TYPE_META[inv.docType].shortLabel;
+  if (!isNoteDocType(inv.docType) || !inv.note.originalInvoiceNumber) return <>{label}</>;
+  return (
+    <>
+      {label} · against <span className="tabular-nums">{inv.note.originalInvoiceNumber}</span>
+    </>
+  );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-8 items-center rounded-full border px-3 text-[13px] font-medium transition-colors focus-visible:focus-ring",
+        active
+          ? "border-primary/40 bg-primary-soft text-primary-soft-foreground"
+          : "border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 function RowActions({
   invoice: inv,
   settings,
+  filings,
   onPay,
 }: {
   invoice: Invoice;
   settings: AppSettings;
+  filings: readonly Filing[];
   onPay: (inv: Invoice) => void;
 }) {
   const router = useRouter();
   const meta = DOC_TYPE_META[inv.docType];
+  const lifecycle = lifecycleOf(inv, filings, settings.gst.filingFrequency);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -564,16 +681,15 @@ function RowActions({
         >
           Save invoice file
         </DropdownMenuItem>
-        {(canDelete(inv) || canCancel(inv)) && <DropdownMenuSeparator />}
-        {canDelete(inv) ? (
-          <DropdownMenuItem icon={<Trash />} tone="danger" onSelect={() => void confirmDelete(inv)}>
-            Delete
-          </DropdownMenuItem>
-        ) : canCancel(inv) ? (
-          <DropdownMenuItem icon={<Ban />} tone="danger" onSelect={() => void confirmCancel(inv)}>
-            Cancel document
-          </DropdownMenuItem>
-        ) : null}
+        <LifecycleMenuItems
+          invoice={inv}
+          lifecycle={lifecycle}
+          settings={settings}
+          onIssue={() => void confirmIssue(inv, settings)}
+          onCancel={() => void confirmCancel(inv)}
+          onDelete={() => void confirmDelete(inv)}
+          onNavigate={(href) => router.push(href)}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   );

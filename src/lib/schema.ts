@@ -620,7 +620,9 @@ export const settingsSchema = z.object({
   numbering: z
     .object({
       tax_invoice: numberingRuleSchema.prefault({ prefix: "INV" }),
-      invoice: numberingRuleSchema.prefault({ prefix: "INV" }),
+      // "BILL", not "INV": both series use {PREFIX}/{FY}/{SEQ} with separate counters, so a
+      // shared prefix would print the same number twice. Stored settings keep their prefix.
+      invoice: numberingRuleSchema.prefault({ prefix: "BILL" }),
       bill_of_supply: numberingRuleSchema.prefault({ prefix: "BOS" }),
       proforma: numberingRuleSchema.prefault({ prefix: "QTN" }),
       export: numberingRuleSchema.prefault({ prefix: "EXP" }),
