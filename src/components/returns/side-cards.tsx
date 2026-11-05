@@ -96,7 +96,7 @@ export function ChangedSinceFiledCard({
     const e = expById.get(c.id);
     return {
       name: e ? `Expense: ${e.vendorName || e.category || "expense"}` : "Deleted expense",
-      href: e ? "/money?tab=out" : undefined,
+      href: e ? `/money?tab=out&edit=${encodeURIComponent(c.id)}` : undefined,
     };
   };
   const noun = changes.length === 1 ? "document" : "documents";

@@ -143,8 +143,7 @@ export function issueHref(issue: ReturnIssue): string | undefined {
     case "invoice":
       return `/invoice?id=${encodeURIComponent(issue.recordId)}`;
     case "expense":
-      // The Money page has no deep link to a single expense yet.
-      return "/money?tab=out";
+      return `/money?tab=out&edit=${encodeURIComponent(issue.recordId)}`;
     case "settings":
       return `/settings?section=${settingsSectionFor(issue.field)}`;
     default:

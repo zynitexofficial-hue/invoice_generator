@@ -82,6 +82,7 @@ export function MoneyView() {
   const router = useRouter();
   const tab: Tab = params.get("tab") === "in" ? "in" : "out";
   const wantsNew = params.get("new") === "1";
+  const editId = params.get("edit");
 
   const expenses = useExpenses();
   const incomes = useIncomes();
@@ -110,6 +111,19 @@ export function MoneyView() {
   useEffect(() => {
     if (wantsNew && handledNew) router.replace(`/money?tab=${tab}`, { scroll: false });
   }, [wantsNew, handledNew, router, tab]);
+
+  // "?edit=ID" (links from GST Returns) opens that record's edit sheet once.
+  const [handledEdit, setHandledEdit] = useState<string | null>(null);
+  if (editId && handledEdit !== editId && expenses && incomes) {
+    setHandledEdit(editId);
+    const expense = expenses.find((e) => e.id === editId);
+    const income = incomes.find((i) => i.id === editId);
+    if (expense) setEditingExpense({ ...expense });
+    else if (income) setEditingIncome({ ...income });
+  }
+  useEffect(() => {
+    if (editId && handledEdit === editId) router.replace(`/money?tab=${tab}`, { scroll: false });
+  }, [editId, handledEdit, router, tab]);
 
   const today = todayISO();
   const resolved = useMemo(() => resolvePeriod(period, today), [period, today]);

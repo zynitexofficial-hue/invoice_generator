@@ -106,7 +106,7 @@ describe("issues", () => {
   it("links each issue to its record", () => {
     expect(issues.map(issueHref)).toEqual([
       "/settings?section=gst",
-      "/money?tab=out",
+      "/money?tab=out&edit=e1",
       "/invoice?id=a%20b",
       undefined,
     ]);

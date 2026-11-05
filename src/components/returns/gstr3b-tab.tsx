@@ -41,7 +41,8 @@ function Cells({ cells, bold }: { cells: [string, string | null][]; bold?: boole
           className={cn(
             "flex justify-between gap-2 tabular-nums @3xl:block @3xl:text-right",
             bold && "font-semibold",
-            v === null && "@max-3xl:hidden",
+            // Empty cells only hold the column on wide layouts.
+            v === null && "hidden @3xl:block",
           )}
         >
           <span className="text-xs text-muted-foreground @3xl:sr-only">{label}</span>
