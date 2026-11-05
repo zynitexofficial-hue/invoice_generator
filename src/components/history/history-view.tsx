@@ -14,6 +14,7 @@ import {
   Plus,
   ScrollText,
   Search,
+  Share2,
   Wallet,
   X,
 } from "lucide-react";
@@ -25,6 +26,7 @@ import { toast } from "sonner";
 import { exportInvoiceFile } from "@/db/backup";
 import { useFilings, useInvoices, useSettings } from "@/db/hooks";
 import { confirmCancel, confirmDelete } from "@/components/document-lifecycle";
+import { openShare } from "@/components/share/share-dialog";
 import { DOC_TYPE_META } from "@/lib/documents";
 import { formatDate, todayISO } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
@@ -656,6 +658,11 @@ function RowActions({
         >
           Download PDF
         </DropdownMenuItem>
+        {inv.status !== "cancelled" && (
+          <DropdownMenuItem icon={<Share2 />} onSelect={() => openShare(inv)}>
+            Share…
+          </DropdownMenuItem>
+        )}
         {meta.hasPayment && inv.status !== "cancelled" && (
           <DropdownMenuItem icon={<Wallet />} onSelect={() => onPay(inv)}>
             Record payment

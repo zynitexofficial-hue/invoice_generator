@@ -4,6 +4,7 @@ import { PrintHost } from "@/components/document/print-host";
 import { AppShell } from "@/components/layout/app-shell";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { InstallHelpDialog } from "@/components/layout/install-app";
+import { ShareHost } from "@/components/share/share-dialog";
 import { FileActionsHost } from "@/components/storage/file-actions";
 import { LockScreenHost } from "@/components/security/lock-screen-host";
 import { StorageBoot, StorageErrorDialog, WelcomeDialog } from "@/components/storage/storage-guard";
@@ -22,6 +23,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <StorageErrorDialog />
       <WelcomeDialog />
       <FileActionsHost />
+      <ShareHost />
       <CommandPalette />
       <InstallHelpDialog />
       <ConfirmHost />

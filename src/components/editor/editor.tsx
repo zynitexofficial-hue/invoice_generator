@@ -12,6 +12,7 @@ import {
   Palette,
   PenLine,
   Search,
+  Share2,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -68,6 +69,7 @@ import { SaveStatus } from "./save-status";
 import { revealField } from "./section";
 import { AnimatedAmount, NotesSection, PaymentSection, SummarySection } from "./summary-section";
 import { flushSave, useAutosave } from "./use-autosave";
+import { openShare } from "@/components/share/share-dialog";
 import { useDownload } from "./use-download";
 
 type Tab = "content" | "design" | "preview";
@@ -530,6 +532,17 @@ function Toolbar({
                   Convert to tax invoice
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem
+                icon={<Share2 />}
+                disabled={!persisted || invoice.status === "cancelled"}
+                onSelect={async () => {
+                  await flushSave();
+                  const latest = useEditor.getState().invoice;
+                  if (latest) openShare(latest);
+                }}
+              >
+                Share…
+              </DropdownMenuItem>
               <DropdownMenuItem icon={<Braces />} onSelect={() => void exportFile()}>
                 Save invoice file (.json)
               </DropdownMenuItem>
