@@ -23,15 +23,7 @@ interface LocalMarker {
   at: string;
 }
 
-const emptyCounts = (): Counts => ({
-  customers: 0,
-  items: 0,
-  invoices: 0,
-  designs: 0,
-  expenses: 0,
-  incomes: 0,
-  filings: 0,
-});
+const emptyCounts = (): Counts => Object.fromEntries(COUNTED_TABLES.map((t) => [t, 0])) as Counts;
 
 function readLocalMarker(): LocalMarker | null {
   try {
@@ -120,6 +112,16 @@ function describeCounts(c: Partial<Counts>): string {
     expenses: ["expense", "expenses"],
     incomes: ["income entry", "income entries"],
     filings: ["filing record", "filing records"],
+    payments: ["payment", "payments"],
+    amendments: ["amendment", "amendments"],
+    recurring: ["recurring template", "recurring templates"],
+    vendors: ["vendor", "vendors"],
+    purchases: ["purchase bill", "purchase bills"],
+    attachments: ["attachment", "attachments"],
+    gstr2bImports: ["GSTR-2B import", "GSTR-2B imports"],
+    gstr2bMatches: ["2B match", "2B matches"],
+    periodInputs: ["return worksheet", "return worksheets"],
+    annualInputs: ["annual worksheet", "annual worksheets"],
   };
   return COUNTED_TABLES.filter((t) => (c[t] ?? 0) > 0)
     .map((t) => `${c[t]} ${c[t] === 1 ? labels[t][0] : labels[t][1]}`)

@@ -414,6 +414,13 @@ export const eInvoiceSchema = z.object({
   ackNo: text(30),
   ackDate: isoDateTime,
   status: z.enum(E_INVOICE_STATUSES).default("not_applicable"),
+  /** Signed QR code text copied from the IRP response (feature B). */
+  qr: text(6000),
+  /** When the IRP bulk JSON was last exported for this document (feature B). */
+  exportedAt: isoDateTime,
+  /** IRN cancellation on the IRP (allowed within 24h of generation) (feature B). */
+  cancelledAt: isoDateTime,
+  cancelReason: text(300),
 });
 export type EInvoiceDetails = z.infer<typeof eInvoiceSchema>;
 
@@ -685,6 +692,49 @@ export const settingsSchema = z.object({
     .max(100)
     .default(() => [...DEFAULT_INCOME_CATEGORIES]),
   security: securitySettingsSchema.prefault({}),
+  // ---- Phase 2-4 shared settings (defaults only; every field is optional in stored data) ----
+  /** [A] Payment ledger defaults. */
+  payments: z
+    .object({
+      defaultMode: z.enum(PAYMENT_MODES).default(""),
+      receiptPrefix: z.string().max(10).default("RCT"),
+    })
+    .prefault({}),
+  /** [B] E-invoice guidance. The applicability switch itself is gst.eInvoiceApplicable. */
+  eInvoice: z
+    .object({
+      /** AATO (₹) at or above which e-invoicing applies, as decimal text (₹5 crore). */
+      turnoverThreshold: z.string().max(16).default("50000000"),
+      /** IRP reporting window (days) for businesses with AATO of ₹10 crore or more. */
+      reportingWindowDays: z.number().int().min(0).max(365).default(30),
+    })
+    .prefault({}),
+  /** [C] Recurring templates. */
+  recurring: z
+    .object({
+      /** Create due documents when the app is opened. */
+      generateOnOpen: z.boolean().default(true),
+      /** Generated invoices stay drafts until reviewed (never auto-issued) unless a template says otherwise. */
+      defaultAutoIssue: z.boolean().default(false),
+      reminderDays: z.number().int().min(0).max(30).default(3),
+    })
+    .prefault({}),
+  /** [D] Purchases and attachments. */
+  purchases: z
+    .object({
+      defaultPaymentDays: z.number().int().min(0).max(365).default(30),
+    })
+    .prefault({}),
+  attachments: z
+    .object({
+      /** Largest single file (KB) accepted by receipt/bill attachments. */
+      maxFileKb: z.number().int().min(50).max(10240).default(2048),
+      /** Warn when all attachments together pass this size (MB). */
+      warnTotalMb: z.number().int().min(10).max(2000).default(100),
+      /** Include attachment files in backups (can make backups large). */
+      includeInBackup: z.boolean().default(true),
+    })
+    .prefault({}),
   onboarding: z
     .object({
       welcomeSeen: z.boolean().default(false),
@@ -766,7 +816,15 @@ export type Income = z.infer<typeof incomeSchema>;
 /* GST filings                                                         */
 /* ------------------------------------------------------------------ */
 
-export const RETURN_TYPES = ["GSTR-1", "IFF", "GSTR-3B", "GSTR-1A", "GSTR-9"] as const;
+export const RETURN_TYPES = [
+  "GSTR-1",
+  "IFF",
+  "GSTR-3B",
+  "GSTR-1A",
+  "GSTR-9",
+  "GSTR-9C",
+  "GSTR-4",
+] as const;
 export type ReturnType = (typeof RETURN_TYPES)[number];
 export const PERIOD_KINDS = ["month", "quarter", "fy"] as const;
 export type PeriodKind = (typeof PERIOD_KINDS)[number];
@@ -832,9 +890,27 @@ export const AUDIT_ENTITIES = [
   "item",
   "filing",
   "settings",
+  // Phase 2-4 entities (see plans/PHASE2-4-OWNERSHIP.md)
+  "payment",
+  "vendor",
+  "purchase",
+  "recurring",
+  "amendment",
+  "gstr2b",
+  "periodInput",
+  "annualInput",
+  "attachment",
 ] as const;
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number];
-export const AUDIT_ACTIONS = ["create", "update", "issue", "cancel", "delete", "restore"] as const;
+export const AUDIT_ACTIONS = [
+  "create",
+  "update",
+  "issue",
+  "cancel",
+  "delete",
+  "restore",
+  "import",
+] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export const auditChangeSchema = z.object({
@@ -854,6 +930,445 @@ export const auditEntrySchema = z.object({
   changes: z.array(auditChangeSchema).max(30).default([]),
 });
 export type AuditEntry = z.infer<typeof auditEntrySchema>;
+
+/* ================================================================== */
+/* PHASE 2-4 ENTITIES                                                  */
+/*                                                                     */
+/* One delimited section per feature (A-F). Each feature agent edits   */
+/* ONLY its own section. Money is decimal text, dates are ISO strings, */
+/* ids come from newId(). See plans/PHASE2-4-OWNERSHIP.md.            */
+/* ================================================================== */
+
+/** Optional period key: "" or 2026-10 / 2026-Q3 / FY2026-27. */
+const optionalPeriodKey = z
+  .string()
+  .regex(/^(|\d{4}-(0[1-9]|1[0-2])|\d{4}-Q[1-4]|FY\d{4}-\d{2})$/, "Expected a period like 2026-10")
+  .default("");
+const fyKeyText = z.string().regex(/^FY\d{4}-\d{2}$/, "Expected a financial year like FY2026-27");
+/** Free-form numeric inputs keyed by worksheet field (decimal text values). */
+const numberMap = z.record(z.string().max(60), decimalText).default({});
+
+/* ================================================================== */
+/* BEGIN [A] PAYMENT LEDGER — owner: feature A                         */
+/* Payments, advances and refunds against invoices; customer           */
+/* statements and collection analytics read this table.               */
+/* ================================================================== */
+
+export const PAYMENT_ENTRY_KINDS = ["payment", "advance", "refund"] as const;
+export type PaymentEntryKind = (typeof PAYMENT_ENTRY_KINDS)[number];
+
+export const PAYMENT_ENTRY_SCHEMA_VERSION = 1;
+
+/**
+ * One receipt of money (or a refund). `invoiceId` "" = an unallocated advance
+ * (allocate it later by splitting the row). The invoice's own `payment` field
+ * stays as the legacy single-payment record; the ledger adds to it.
+ */
+export const paymentEntrySchema = z.object({
+  id: z.string().min(1),
+  schemaVersion: z.literal(PAYMENT_ENTRY_SCHEMA_VERSION).default(PAYMENT_ENTRY_SCHEMA_VERSION),
+  kind: z.enum(PAYMENT_ENTRY_KINDS).default("payment"),
+  invoiceId: text(64),
+  /** Number of the invoice when recorded (kept readable if the invoice is renamed or removed). */
+  invoiceNumber: text(60),
+  customerId: text(64),
+  customerName: text(160),
+  date: isoDate,
+  amount: decimalText,
+  mode: z.enum(PAYMENT_MODES).default(""),
+  /** UPI ref / cheque no. / bank UTR. */
+  reference: text(80),
+  receiptNo: text(60),
+  /** Set when this row was split off an advance (the source row id). */
+  splitFromId: text(64),
+  notes: text(500),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type PaymentEntry = z.infer<typeof paymentEntrySchema>;
+
+/* END [A] PAYMENT LEDGER */
+
+/* ================================================================== */
+/* BEGIN [B] AMENDMENTS & E-INVOICE — owner: feature B                 */
+/* GSTR-1A / amendments after filing and cross-period cancellations.   */
+/* E-invoice details live on Invoice.eInvoice (extended above).        */
+/* ================================================================== */
+
+export const AMENDMENT_KINDS = [
+  "invoice_amendment",
+  "note_amendment",
+  "cancellation",
+  "other",
+] as const;
+export type AmendmentKind = (typeof AMENDMENT_KINDS)[number];
+export const AMENDMENT_STATUSES = ["draft", "ready", "reported"] as const;
+export type AmendmentStatus = (typeof AMENDMENT_STATUSES)[number];
+
+export const AMENDMENT_SCHEMA_VERSION = 1;
+
+export const amendmentSchema = z.object({
+  id: z.string().min(1),
+  schemaVersion: z.literal(AMENDMENT_SCHEMA_VERSION).default(AMENDMENT_SCHEMA_VERSION),
+  kind: z.enum(AMENDMENT_KINDS).default("invoice_amendment"),
+  status: z.enum(AMENDMENT_STATUSES).default("draft"),
+  originalInvoiceId: text(64),
+  originalNumber: text(60),
+  originalDate: isoDate,
+  /** Period of the filed return that carried the original document. */
+  originalPeriodKey: optionalPeriodKey,
+  /** Open period in which the amendment is reported. */
+  amendInPeriodKey: optionalPeriodKey,
+  reason: text(300),
+  /** Return-relevant values (taxable, tax heads, place of supply…) before and after. */
+  before: z.record(z.string().max(60), z.string().max(200)).default({}),
+  after: z.record(z.string().max(60), z.string().max(200)).default({}),
+  reportedAt: isoDateTime,
+  notes: text(1000),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type Amendment = z.infer<typeof amendmentSchema>;
+
+/* END [B] AMENDMENTS & E-INVOICE */
+
+/* ================================================================== */
+/* BEGIN [C] RECURRING & IMPORT — owner: feature C                     */
+/* Templates that generate invoices or expenses on a schedule.         */
+/* ================================================================== */
+
+export const RECURRING_KINDS = ["invoice", "expense"] as const;
+export type RecurringKind = (typeof RECURRING_KINDS)[number];
+export const RECURRENCE_FREQUENCIES = [
+  "weekly",
+  "monthly",
+  "quarterly",
+  "half_yearly",
+  "yearly",
+] as const;
+export type RecurrenceFrequency = (typeof RECURRENCE_FREQUENCIES)[number];
+
+export const RECURRING_SCHEMA_VERSION = 1;
+
+export const recurringRunSchema = z.object({
+  date: isoDate,
+  recordId: z.string().min(1),
+  recordNumber: text(60),
+});
+export type RecurringRun = z.infer<typeof recurringRunSchema>;
+
+export const recurringSchema = z.object({
+  id: z.string().min(1),
+  schemaVersion: z.literal(RECURRING_SCHEMA_VERSION).default(RECURRING_SCHEMA_VERSION),
+  kind: z.enum(RECURRING_KINDS).default("invoice"),
+  name: text(120),
+  active: z.boolean().default(true),
+  frequency: z.enum(RECURRENCE_FREQUENCIES).default("monthly"),
+  /** Every N frequency units. */
+  interval: z.number().int().min(1).max(12).default(1),
+  startDate: isoDate,
+  /** "" = no end. */
+  endDate: isoDate,
+  /** 0 = same day as the start date; 1-31 = fixed day of month (clamped to month end). */
+  dayOfMonth: z.number().int().min(0).max(31).default(0),
+  nextRunDate: isoDate,
+  lastRunDate: isoDate,
+  runCount: z.number().int().min(0).default(0),
+  /** 0 = unlimited. */
+  maxRuns: z.number().int().min(0).default(0),
+  /** Issue generated invoices immediately instead of leaving them as drafts. */
+  autoIssue: z.boolean().default(false),
+  /**
+   * Partial Invoice (kind "invoice") or Expense (kind "expense") to copy.
+   * Validate with invoiceSchema/expenseSchema when generating.
+   */
+  template: z.record(z.string(), z.unknown()).default({}),
+  /** Most recent generated records (capped by the writer). */
+  runs: z.array(recurringRunSchema).max(200).default([]),
+  notes: text(500),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type Recurring = z.infer<typeof recurringSchema>;
+
+/* END [C] RECURRING & IMPORT */
+
+/* ================================================================== */
+/* BEGIN [D] VENDORS, PURCHASES & ATTACHMENTS — owner: feature D       */
+/* Vendor master, purchase bills with payments, receipt attachments.   */
+/* ================================================================== */
+
+export const VENDOR_SCHEMA_VERSION = 1;
+
+export const vendorSchema = z.object({
+  id: z.string().min(1),
+  schemaVersion: z.literal(VENDOR_SCHEMA_VERSION).default(VENDOR_SCHEMA_VERSION),
+  name: text(160),
+  tradeName: text(160),
+  gstin: text(15),
+  pan: text(10),
+  stateCode: text(2),
+  billingAddress: text(500),
+  city: text(80),
+  pincode: text(6),
+  email: text(160),
+  phone: text(40),
+  /** Default credit period for new bills. */
+  paymentTermsDays: z.number().int().min(0).max(365).default(30),
+  /** Balance carried in when the vendor was added; positive = we owe the vendor. */
+  openingBalance: decimalText,
+  openingBalanceDate: isoDate,
+  defaultCategory: text(60),
+  notes: text(1000),
+  archived: z.boolean().default(false),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type Vendor = z.infer<typeof vendorSchema>;
+
+export const purchaseLineSchema = z.object({
+  id: z.string().min(1),
+  description: text(300),
+  hsn: text(8),
+  itemType: z.enum(ITEM_TYPES).default("goods"),
+  quantity: decimalText,
+  unit: text(10),
+  unitPrice: decimalText,
+  gstRate: decimalText,
+});
+export type PurchaseLine = z.infer<typeof purchaseLineSchema>;
+
+/** A payment made against one purchase bill. */
+export const purchasePaymentSchema = z.object({
+  id: z.string().min(1),
+  date: isoDate,
+  amount: decimalText,
+  mode: z.enum(PAYMENT_MODES).default(""),
+  reference: text(80),
+  notes: text(300),
+});
+export type PurchasePayment = z.infer<typeof purchasePaymentSchema>;
+
+export const purchaseSummarySchema = z.object({
+  taxable: z.string().default("0.00"),
+  cgst: z.string().default("0.00"),
+  sgst: z.string().default("0.00"),
+  igst: z.string().default("0.00"),
+  total: z.string().default("0.00"),
+  paid: z.string().default("0.00"),
+  balance: z.string().default("0.00"),
+});
+export type PurchaseSummary = z.infer<typeof purchaseSummarySchema>;
+
+export const PURCHASE_PAYMENT_STATUSES = ["unpaid", "partial", "paid"] as const;
+export type PurchasePaymentStatus = (typeof PURCHASE_PAYMENT_STATUSES)[number];
+
+export const PURCHASE_SCHEMA_VERSION = 1;
+
+export const purchaseSchema = z.object({
+  id: z.string().min(1),
+  schemaVersion: z.literal(PURCHASE_SCHEMA_VERSION).default(PURCHASE_SCHEMA_VERSION),
+  vendorId: text(64),
+  /** Snapshots so the bill stays readable if the vendor is edited or removed. */
+  vendorName: text(160),
+  vendorGstin: text(15),
+  vendorStateCode: text(2),
+  billNo: text(60),
+  billDate: isoDate,
+  dueDate: isoDate,
+  placeOfSupply: text(2),
+  lines: z.array(purchaseLineSchema).max(500).default([]),
+  pricesIncludeGst: z.boolean().default(false),
+  gstMode: z.enum(EXPENSE_GST_MODES).default("none"),
+  reverseCharge: z.boolean().default(false),
+  itcEligible: z.boolean().default(false),
+  itcType: z.enum(ITC_TYPES).default("inputs"),
+  category: text(60),
+  payments: z.array(purchasePaymentSchema).max(200).default([]),
+  paymentStatus: z.enum(PURCHASE_PAYMENT_STATUSES).default("unpaid"),
+  /** Ids in the attachments table. */
+  attachmentIds: z.array(z.string().min(1)).max(20).default([]),
+  /** Optional link when the bill was also posted as an expense. */
+  expenseId: text(64),
+  /** Computed on save by the writer; never trusted from input. */
+  summary: purchaseSummarySchema.prefault({}),
+  notes: text(1000),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type Purchase = z.infer<typeof purchaseSchema>;
+
+export const ATTACHMENT_OWNER_TYPES = [
+  "purchase",
+  "expense",
+  "invoice",
+  "payment",
+  "other",
+] as const;
+export type AttachmentOwnerType = (typeof ATTACHMENT_OWNER_TYPES)[number];
+
+/**
+ * Attachment metadata. The file itself lives in `attachmentBlobs` (same id,
+ * base64 text) so listing and data-health checks never load file contents.
+ */
+export const attachmentSchema = z.object({
+  id: z.string().min(1),
+  ownerType: z.enum(ATTACHMENT_OWNER_TYPES).default("other"),
+  ownerId: text(64),
+  name: text(200),
+  /** MIME type, e.g. image/jpeg or application/pdf. */
+  mime: text(100),
+  /** Original file size in bytes. */
+  size: z.number().int().min(0).default(0),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type Attachment = z.infer<typeof attachmentSchema>;
+
+export const attachmentBlobSchema = z.object({
+  id: z.string().min(1),
+  /** Base64 file contents (no data: prefix). */
+  data: z.string().max(60_000_000).default(""),
+});
+export type AttachmentBlob = z.infer<typeof attachmentBlobSchema>;
+
+/* END [D] VENDORS, PURCHASES & ATTACHMENTS */
+
+/* ================================================================== */
+/* BEGIN [E] GSTR-2B / IMS & ITC — owner: feature E                    */
+/* Imported GSTR-2B statements, matches to purchases/expenses, and     */
+/* manual GSTR-3B worksheet inputs per period.                         */
+/* ================================================================== */
+
+export const GSTR2B_DOC_TYPES = ["invoice", "credit_note", "debit_note", "other"] as const;
+export type Gstr2bDocType = (typeof GSTR2B_DOC_TYPES)[number];
+export const IMS_ACTIONS = ["none", "accepted", "rejected", "pending"] as const;
+export type ImsAction = (typeof IMS_ACTIONS)[number];
+export const GSTR2B_SOURCES = ["csv", "json", "manual"] as const;
+
+export const gstr2bRowSchema = z.object({
+  id: z.string().min(1),
+  supplierGstin: text(15),
+  supplierName: text(160),
+  docType: z.enum(GSTR2B_DOC_TYPES).default("invoice"),
+  docNo: text(60),
+  docDate: isoDate,
+  pos: text(2),
+  taxable: decimalText,
+  igst: decimalText,
+  cgst: decimalText,
+  sgst: decimalText,
+  cess: decimalText,
+  rcm: z.boolean().default(false),
+  itcAvailable: z.boolean().default(true),
+  itcReason: text(200),
+  imsAction: z.enum(IMS_ACTIONS).default("none"),
+  notes: text(300),
+});
+export type Gstr2bRow = z.infer<typeof gstr2bRowSchema>;
+
+export const GSTR2B_SCHEMA_VERSION = 1;
+
+export const gstr2bImportSchema = z.object({
+  id: z.string().min(1),
+  schemaVersion: z.literal(GSTR2B_SCHEMA_VERSION).default(GSTR2B_SCHEMA_VERSION),
+  /** Return month, e.g. 2026-10. */
+  periodKey: optionalPeriodKey,
+  source: z.enum(GSTR2B_SOURCES).default("csv"),
+  fileName: text(200),
+  /** Recipient GSTIN the statement was generated for. */
+  gstin: text(15),
+  importedAt: isoDateTime,
+  rows: z.array(gstr2bRowSchema).max(20000).default([]),
+  notes: text(500),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type Gstr2bImport = z.infer<typeof gstr2bImportSchema>;
+
+export const GSTR2B_MATCH_STATUSES = [
+  "matched",
+  "probable",
+  "mismatch",
+  "manual",
+  "unmatched",
+  "ignored",
+] as const;
+export type Gstr2bMatchStatus = (typeof GSTR2B_MATCH_STATUSES)[number];
+
+/** Link between one imported 2B row and a purchase bill or expense. */
+export const gstr2bMatchSchema = z.object({
+  id: z.string().min(1),
+  importId: z.string().min(1),
+  rowId: z.string().min(1),
+  targetType: z.enum(["", "purchase", "expense"]).default(""),
+  targetId: text(64),
+  status: z.enum(GSTR2B_MATCH_STATUSES).default("unmatched"),
+  taxableDiff: decimalText,
+  taxDiff: decimalText,
+  note: text(300),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type Gstr2bMatch = z.infer<typeof gstr2bMatchSchema>;
+
+/**
+ * Manual GSTR-3B worksheet inputs for one period. `id` = periodKey (month or
+ * quarter). Values use worksheet keys chosen by feature E (e.g. "4B1").
+ */
+export const periodInputSchema = z.object({
+  id: z.string().min(1),
+  periodKey: z.string().regex(PERIOD_KEY_RE),
+  values: numberMap,
+  /** Checkbox style flags (e.g. "ims_reviewed"). */
+  flags: z.record(z.string().max(60), z.boolean()).default({}),
+  setOffNotes: text(2000),
+  notes: text(2000),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type PeriodInput = z.infer<typeof periodInputSchema>;
+
+/* END [E] GSTR-2B / IMS & ITC */
+
+/* ================================================================== */
+/* BEGIN [F] ANNUAL RETURNS & TAX PACK — owner: feature F              */
+/* Manual GSTR-9 / 9C / GSTR-4 / annual P&L inputs keyed by FY.        */
+/* ================================================================== */
+
+export const annualInputSchema = z.object({
+  /** `FY2026-27` (the financial year key). */
+  id: fyKeyText,
+  gstr9: numberMap,
+  gstr9c: z
+    .object({
+      checklist: z.record(z.string().max(60), z.boolean()).default({}),
+      values: numberMap,
+      notes: text(2000),
+    })
+    .prefault({}),
+  gstr4: z
+    .object({
+      values: numberMap,
+      notes: text(2000),
+    })
+    .prefault({}),
+  pnl: z
+    .object({
+      openingStock: decimalText,
+      closingStock: decimalText,
+      depreciation: decimalText,
+      otherAdjustments: decimalText,
+      notes: text(2000),
+    })
+    .prefault({}),
+  notes: text(2000),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+export type AnnualInput = z.infer<typeof annualInputSchema>;
+
+/* END [F] ANNUAL RETURNS & TAX PACK */
 
 /* ------------------------------------------------------------------ */
 /* Files                                                               */
@@ -890,6 +1405,18 @@ export const backupFileSchema = z.object({
     filings: z.array(filingSchema).default([]),
     returnSnapshots: z.array(returnSnapshotSchema).default([]),
     auditLog: z.array(auditEntrySchema).default([]),
+    // ---- Backup v3 (Phase 2-4): absent in v1/v2 files and defaulted to empty ----
+    payments: z.array(paymentEntrySchema).default([]),
+    amendments: z.array(amendmentSchema).default([]),
+    recurring: z.array(recurringSchema).default([]),
+    vendors: z.array(vendorSchema).default([]),
+    purchases: z.array(purchaseSchema).default([]),
+    attachments: z.array(attachmentSchema).default([]),
+    attachmentBlobs: z.array(attachmentBlobSchema).default([]),
+    gstr2bImports: z.array(gstr2bImportSchema).default([]),
+    gstr2bMatches: z.array(gstr2bMatchSchema).default([]),
+    periodInputs: z.array(periodInputSchema).default([]),
+    annualInputs: z.array(annualInputSchema).default([]),
   }),
 });
 export type BackupFile = z.infer<typeof backupFileSchema>;

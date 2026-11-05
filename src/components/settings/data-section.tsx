@@ -46,6 +46,17 @@ const TABLE_LABELS: Record<ValidatedTable, string> = {
   filings: "GST filing tracker",
   returnSnapshots: "Return snapshots",
   auditLog: "Change history",
+  payments: "Payments",
+  amendments: "GST amendments",
+  recurring: "Recurring templates",
+  vendors: "Vendors",
+  purchases: "Purchase bills",
+  attachments: "Attachments",
+  attachmentBlobs: "Attachment files",
+  gstr2bImports: "GSTR-2B imports",
+  gstr2bMatches: "GSTR-2B matches",
+  periodInputs: "Return worksheets",
+  annualInputs: "Annual worksheets",
 };
 
 /** Rows that fail validation are hidden from the app; let the user download them. */

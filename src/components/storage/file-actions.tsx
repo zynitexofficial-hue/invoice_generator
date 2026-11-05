@@ -304,16 +304,26 @@ function RestoreForm({ pending, onClose }: { pending: PendingRestore; onClose: (
               ["Expenses", s.expenses],
               ["Other income", s.incomes],
               ["GST filings", s.filings],
+              // Newer record types are listed only when the backup has some.
+              ["Payments", s.payments],
+              ["Vendors", s.vendors],
+              ["Purchase bills", s.purchases],
+              ["Recurring", s.recurring],
+              ["Amendments", s.amendments],
+              ["GSTR-2B imports", s.gstr2bImports],
+              ["Attachments", s.attachments],
             ] as const
-          ).map(([label, n]) => (
-            <div
-              key={label}
-              className="rounded-xl border border-border bg-surface-2/50 p-3 text-center"
-            >
-              <div className="text-lg font-semibold tabular-nums">{n}</div>
-              <div className="text-xs text-muted-foreground">{label}</div>
-            </div>
-          ))}
+          )
+            .filter(([, n], i) => i < 7 || n > 0)
+            .map(([label, n]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-border bg-surface-2/50 p-3 text-center"
+              >
+                <div className="text-lg font-semibold tabular-nums">{n}</div>
+                <div className="text-xs text-muted-foreground">{label}</div>
+              </div>
+            ))}
         </div>
         {!pending.fresh && (
           <Segmented<RestoreMode>

@@ -54,6 +54,7 @@ import {
   type PeriodSelection,
 } from "./money-data";
 import { ExpenseList, IncomeList } from "./money-lists";
+import { findMoneyExtraTab, MONEY_EXTRA_TABS } from "./money-tabs";
 import { PeriodFilter } from "./period-filter";
 
 type Tab = "out" | "in";
@@ -81,6 +82,9 @@ export function MoneyView() {
   const params = useSearchParams();
   const router = useRouter();
   const tab: Tab = params.get("tab") === "in" ? "in" : "out";
+  // Extra tabs (Bills & vendors, Recurring) bring their own content and toolbar.
+  const extraTab = findMoneyExtraTab(params.get("tab"));
+  const activeTab = extraTab?.id ?? tab;
   const wantsNew = params.get("new") === "1";
   const editId = params.get("edit");
 
@@ -188,7 +192,7 @@ export function MoneyView() {
     setStatus("all");
   };
   const switchTab = (next: string) => {
-    if (next === tab) return;
+    if (next === activeTab) return;
     setCategory(""); // categories differ between the tabs
     router.replace(`/money?tab=${next}`, { scroll: false });
   };
@@ -245,27 +249,33 @@ export function MoneyView() {
       title="Money"
       width="wide"
       description={
-        <>
-          {out ? "Spent" : "Other income"} in {periodName}:{" "}
-          <span className="font-semibold text-foreground tabular-nums">
-            {money(out ? eTotals.total : iTotals.total)}
-          </span>
-          {out && eTotals.itc !== "0.00" && (
-            <>
-              {" "}
-              · ITC{" "}
-              <span className="font-medium text-success-foreground tabular-nums">
-                {money(eTotals.itc)}
-              </span>
-            </>
-          )}
-        </>
+        extraTab ? (
+          extraTab.label
+        ) : (
+          <>
+            {out ? "Spent" : "Other income"} in {periodName}:{" "}
+            <span className="font-semibold text-foreground tabular-nums">
+              {money(out ? eTotals.total : iTotals.total)}
+            </span>
+            {out && eTotals.itc !== "0.00" && (
+              <>
+                {" "}
+                · ITC{" "}
+                <span className="font-medium text-success-foreground tabular-nums">
+                  {money(eTotals.itc)}
+                </span>
+              </>
+            )}
+          </>
+        )
       }
       actions={
-        <Button variant="primary" onClick={addNew}>
-          <Plus />
-          {out ? "Add expense" : "Add income"}
-        </Button>
+        extraTab ? undefined : (
+          <Button variant="primary" onClick={addNew}>
+            <Plus />
+            {out ? "Add expense" : "Add income"}
+          </Button>
+        )
       }
     >
       {invalid > 0 && (
@@ -290,18 +300,23 @@ export function MoneyView() {
         </Alert>
       )}
 
-      <Tabs value={tab} onValueChange={switchTab}>
-        <TabsList
-          aria-label="Money out or in"
-          value={tab}
-          className="mb-4"
-          tabs={[
-            { value: "out", label: "Money out", icon: <ArrowUpRight /> },
-            { value: "in", label: "Money in", icon: <ArrowDownLeft /> },
-          ]}
-        />
-        <TabsContent value={tab} className="outline-none">
-          {!hasAny ? (
+      <Tabs value={activeTab} onValueChange={switchTab}>
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <TabsList
+            aria-label="Money sections"
+            value={activeTab}
+            className="mb-4 min-w-max"
+            tabs={[
+              { value: "out", label: "Money out", icon: <ArrowUpRight /> },
+              { value: "in", label: "Money in", icon: <ArrowDownLeft /> },
+              ...MONEY_EXTRA_TABS.map((t) => ({ value: t.id, label: t.label })),
+            ]}
+          />
+        </div>
+        <TabsContent value={activeTab} className="outline-none">
+          {extraTab ? (
+            <extraTab.Component />
+          ) : !hasAny ? (
             <Card>
               {out ? (
                 <EmptyState

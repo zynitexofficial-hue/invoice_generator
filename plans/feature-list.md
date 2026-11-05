@@ -12,6 +12,7 @@
 - **Built (P0 + P1):** sections A, B, D, E, F (F1–F10), G, H and I, plus C1, C2 and C5. Typecheck, 416 unit tests and the production build pass.
 - **C5 (share):** a *Share…* dialog (History row menu and editor menu) with an editable, prefilled message and WhatsApp (`wa.me`), email (`mailto:`), copy and Web Share buttons. The message includes the existing UPI pay link. The PDF is not attached automatically because it comes from the browser print dialog; the dialog tells the user to attach it.
 - **A11 (audit log):** the log is written for invoices, expenses, incomes and filings; a per-document *History of changes* dialog (History row menu and editor menu) shows invoice entries. Expenses, incomes and filings have no view yet.
+- **Phase 2-4 foundation (landed):** Dexie v3, backup v3, schemas, DB layer, hooks and tab/route stubs for the next feature set; see `plans/PHASE2-4-OWNERSHIP.md`. The stubs show "Coming in this release" until built.
 - **Not verified:** GSTR-1/3B output against real returns; cross-browser PDF/print, accessibility and 360 px passes.
 - **Not started:** C3, C4, F11, F12 (P2); D7, D8, F13, K1–K5 (P2/P3); F14 (P4); section J (desktop).
 - Individual P1 rows were not each re-checked one by one; treat "built" as "implemented and covered by tests", not "signed off".

@@ -56,6 +56,11 @@ export const ANALYTICS_TABS = [
   "gst",
   "receivables",
   "registers",
+  // Phase 2-4 tabs (stubs until their feature lands; see plans/PHASE2-4-OWNERSHIP.md)
+  "collections",
+  "payables",
+  "itc",
+  "yoy",
 ] as const;
 export type AnalyticsTab = (typeof ANALYTICS_TABS)[number];
 
@@ -66,6 +71,10 @@ export const ANALYTICS_TAB_LABELS: Record<AnalyticsTab, string> = {
   gst: "GST",
   receivables: "Receivables",
   registers: "Registers",
+  collections: "Collections",
+  payables: "Payables & cash flow",
+  itc: "ITC reconciliation",
+  yoy: "Year over year",
 };
 
 export function parseTab(v: string | null | undefined): AnalyticsTab {

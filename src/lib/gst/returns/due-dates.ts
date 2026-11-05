@@ -122,10 +122,17 @@ export function dueDate(
         lastMonthOf(kind === "month" ? quarterOf(periodKey) : periodKey),
         qrmp3bDay(opts.stateCode),
       );
-    case "GSTR-9": {
+    case "GSTR-9":
+    case "GSTR-9C": {
       if (kind !== "fy") return null;
       const start = Number(periodKey.slice(2, 6));
       return `${start + 1}-12-31`;
+    }
+    case "GSTR-4": {
+      // Composition annual return: 30 April after the financial year. Verify on portal.
+      if (kind !== "fy") return null;
+      const start = Number(periodKey.slice(2, 6));
+      return `${start + 1}-04-30`;
     }
   }
 }

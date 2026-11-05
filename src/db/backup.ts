@@ -25,8 +25,9 @@ import { resetMarker } from "./health";
 import { loadSettings, updateSettings } from "./settings";
 import { guardedWrite } from "./write";
 
-const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
-export const BACKUP_SCHEMA_VERSION = 2;
+// Backups can now carry attachment files (base64), so the cap is higher than before.
+const MAX_IMPORT_BYTES = 200 * 1024 * 1024;
+export const BACKUP_SCHEMA_VERSION = 3;
 
 export class ImportError extends Error {}
 
@@ -61,6 +62,9 @@ function migrate(
   // Backup v1 → v2: the new tables (expenses, incomes, filings, returnSnapshots,
   // auditLog) default to empty arrays in the schema; settings.security is dropped
   // by the schema. Invoice rows are upgraded v1 → v2 by invoiceSchema itself.
+  // Backup v2 → v3: the Phase 2-4 tables (payments, amendments, recurring, vendors,
+  // purchases, attachments, GSTR-2B imports/matches, period and annual inputs) default
+  // to empty arrays in the schema.
   // Invoice files v1 → v2: handled by invoiceSchema (schemaVersion 1 is accepted).
   return { ...raw, schemaVersion: current };
 }
@@ -127,6 +131,7 @@ export async function buildBackup(): Promise<BackupFile> {
     filings,
     returnSnapshots,
     auditLog,
+    v3,
   ] = await Promise.all([
     loadSettings(),
     db.customers.toArray(),
@@ -139,10 +144,12 @@ export async function buildBackup(): Promise<BackupFile> {
     db.filings.toArray(),
     db.returnSnapshots.toArray(),
     db.auditLog.toArray(),
+    readV3Tables(),
   ]);
   // The PIN hash/salt never leave this browser (spec H3).
   const { security: _security, ...portableSettings } = settings;
   void _security;
+  const includeFiles = settings.attachments.includeInBackup;
   return {
     format: BACKUP_FILE_FORMAT,
     schemaVersion: BACKUP_SCHEMA_VERSION,
@@ -159,8 +166,36 @@ export async function buildBackup(): Promise<BackupFile> {
       filings,
       returnSnapshots,
       auditLog,
+      ...v3,
+      // Attachment files can be large; the user can leave them out of backups.
+      attachments: includeFiles ? v3.attachments : [],
+      attachmentBlobs: includeFiles ? v3.attachmentBlobs : [],
     },
   };
+}
+
+/** Phase 2-4 tables, restored generically. "newer" = keep the more recently edited copy. */
+const V3_TABLES = [
+  ["payments", "newer"],
+  ["amendments", "newer"],
+  ["recurring", "newer"],
+  ["vendors", "newer"],
+  ["purchases", "newer"],
+  ["attachments", "newer"],
+  ["attachmentBlobs", "missing"],
+  ["gstr2bImports", "newer"],
+  ["gstr2bMatches", "newer"],
+  ["periodInputs", "newer"],
+  ["annualInputs", "newer"],
+] as const;
+type V3Key = (typeof V3_TABLES)[number][0];
+
+async function readV3Tables(): Promise<Pick<BackupFile["data"], V3Key>> {
+  const db = getDb();
+  const entries = await Promise.all(
+    V3_TABLES.map(async ([key]) => [key, await db.table(key).toArray()] as const),
+  );
+  return Object.fromEntries(entries) as Pick<BackupFile["data"], V3Key>;
 }
 
 /** Serialize a backup, encrypting it when a passphrase is given. */
@@ -267,6 +302,13 @@ export interface BackupSummary {
   expenses: number;
   incomes: number;
   filings: number;
+  payments: number;
+  vendors: number;
+  purchases: number;
+  recurring: number;
+  amendments: number;
+  gstr2bImports: number;
+  attachments: number;
   hasSettings: boolean;
   exportedAt: string;
   encrypted: boolean;
@@ -281,6 +323,13 @@ export function summarizeBackup(b: BackupFile, encrypted = false): BackupSummary
     expenses: b.data.expenses.length,
     incomes: b.data.incomes.length,
     filings: b.data.filings.length,
+    payments: b.data.payments.length,
+    vendors: b.data.vendors.length,
+    purchases: b.data.purchases.length,
+    recurring: b.data.recurring.length,
+    amendments: b.data.amendments.length,
+    gstr2bImports: b.data.gstr2bImports.length,
+    attachments: b.data.attachments.length,
     hasSettings: Boolean(b.data.settings),
     exportedAt: b.exportedAt,
     encrypted,
@@ -331,6 +380,7 @@ export async function restoreBackup(backup: BackupFile, mode: RestoreMode) {
           await db.filings.bulkPut(d.filings);
           await db.returnSnapshots.bulkPut(d.returnSnapshots);
           await db.auditLog.bulkPut(d.auditLog);
+          for (const [key] of V3_TABLES) await db.table(key).bulkPut(d[key]);
         } else {
           if (d.settings && !currentSettings.profile.name.trim()) {
             await db.settings.put(withLocalSecurity(d.settings));
@@ -397,6 +447,17 @@ export async function restoreBackup(backup: BackupFile, mode: RestoreMode) {
             (id) => db.auditLog.get(id),
             (r) => db.auditLog.put(r),
           );
+          for (const [key, how] of V3_TABLES) {
+            const table = db.table(key);
+            for (const row of d[key] as Array<{ id: string; updatedAt?: string }>) {
+              const existing = (await table.get(row.id)) as { updatedAt?: string } | undefined;
+              if (
+                !existing ||
+                (how === "newer" && (row.updatedAt || "") > (existing.updatedAt || ""))
+              )
+                await table.put(row);
+            }
+          }
           for (const c of d.counters) {
             const existing = await db.counters.get(c.key);
             if (!existing || c.value > existing.value) await db.counters.put(c);
@@ -426,6 +487,7 @@ const DATA_TABLES = (db: AppDatabase) => [
   db.filings,
   db.returnSnapshots,
   db.auditLog,
+  ...V3_TABLES.map(([key]) => db[key]),
 ];
 const ALL_TABLES = (db: AppDatabase) => [db.settings, ...DATA_TABLES(db)];
 

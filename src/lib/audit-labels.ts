@@ -23,6 +23,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   cancel: "Cancelled",
   delete: "Deleted",
   restore: "Restored",
+  import: "Imported",
 };
 
 export function auditActionLabel(action: AuditAction): string {

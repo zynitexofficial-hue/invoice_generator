@@ -25,7 +25,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/invoice", label: "Editor", icon: FilePlus },
   { href: "/history", label: "Invoices", icon: ScrollText },
   { href: "/money", label: "Money", icon: Wallet },
-  { href: "/returns", label: "GST Returns", icon: Landmark },
+  { href: "/returns", label: "GST Returns", icon: Landmark, match: ["/tax-pack"] },
   { href: "/analytics", label: "Analytics", icon: ChartColumn },
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/items", label: "Items", icon: Package },

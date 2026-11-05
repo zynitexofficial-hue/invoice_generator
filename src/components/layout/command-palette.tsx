@@ -2,6 +2,8 @@
 
 import { Command } from "cmdk";
 import {
+  FileSpreadsheet,
+  FolderArchive,
   Braces,
   FileText,
   FolderOpen,
@@ -165,6 +167,16 @@ export function CommandPalette() {
                 })}
               </Group>
 
+              <Group heading="More">
+                <Item
+                  icon={<FolderArchive />}
+                  onSelect={() => go("/tax-pack")}
+                  keywords={["ca", "accountant", "year end", "annual", "tax pack", "export"]}
+                >
+                  Tax pack for your CA
+                </Item>
+              </Group>
+
               {invoices && invoices.length > 0 && (
                 <Group heading="Recent documents">
                   {invoices.slice(0, 8).map((inv) => (
@@ -184,6 +196,13 @@ export function CommandPalette() {
               )}
 
               <Group heading="Data">
+                <Item
+                  icon={<FileSpreadsheet />}
+                  onSelect={() => go("/import")}
+                  keywords={["import", "csv", "customers", "items", "expenses", "spreadsheet"]}
+                >
+                  Import from CSV
+                </Item>
                 <Item
                   icon={<FolderOpen />}
                   onSelect={() => run(openInvoiceFile)}

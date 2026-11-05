@@ -216,7 +216,16 @@ export function duplicateInvoice(
     status: "active",
     cancelledAt: "",
     cancelReason: "",
-    eInvoice: { irn: "", ackNo: "", ackDate: "", status: "not_applicable" },
+    eInvoice: {
+      irn: "",
+      ackNo: "",
+      ackDate: "",
+      status: "not_applicable",
+      qr: "",
+      exportedAt: "",
+      cancelledAt: "",
+      cancelReason: "",
+    },
     createdAt: stamp,
     updatedAt: stamp,
   };

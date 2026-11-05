@@ -259,7 +259,7 @@ describe("data health", () => {
   });
 });
 
-describe("backup v2", () => {
+describe("backup v3", () => {
   it("never exports the PIN and never overwrites the local PIN on restore", async () => {
     await updateSettings((s) => ({
       ...s,
@@ -271,7 +271,7 @@ describe("backup v2", () => {
     const text = JSON.stringify(backup);
     expect(text).not.toContain("HASH-A");
     expect(text).not.toContain("SALT-A");
-    expect(backup.schemaVersion).toBe(2);
+    expect(backup.schemaVersion).toBe(3);
     expect(backup.data.expenses).toHaveLength(1);
 
     // A different PIN is set locally; restoring must keep it.

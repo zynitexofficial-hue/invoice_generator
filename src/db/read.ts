@@ -1,14 +1,25 @@
 import type { z } from "zod";
 import {
+  amendmentSchema,
+  annualInputSchema,
+  attachmentBlobSchema,
+  attachmentSchema,
   auditEntrySchema,
   catalogItemSchema,
   customerSchema,
   expenseSchema,
   filingSchema,
+  gstr2bImportSchema,
+  gstr2bMatchSchema,
   incomeSchema,
   invoiceSchema,
+  paymentEntrySchema,
+  periodInputSchema,
+  purchaseSchema,
+  recurringSchema,
   returnSnapshotSchema,
   savedDesignSchema,
+  vendorSchema,
 } from "@/lib/schema";
 import { getDb } from "./db";
 
@@ -45,6 +56,18 @@ export const TABLE_SCHEMAS = {
   filings: filingSchema,
   returnSnapshots: returnSnapshotSchema,
   auditLog: auditEntrySchema,
+  // v3 (Phase 2-4)
+  payments: paymentEntrySchema,
+  amendments: amendmentSchema,
+  recurring: recurringSchema,
+  vendors: vendorSchema,
+  purchases: purchaseSchema,
+  attachments: attachmentSchema,
+  attachmentBlobs: attachmentBlobSchema,
+  gstr2bImports: gstr2bImportSchema,
+  gstr2bMatches: gstr2bMatchSchema,
+  periodInputs: periodInputSchema,
+  annualInputs: annualInputSchema,
 } as const;
 export type ValidatedTable = keyof typeof TABLE_SCHEMAS;
 export const VALIDATED_TABLES = Object.keys(TABLE_SCHEMAS) as ValidatedTable[];
@@ -65,10 +88,25 @@ export async function invalidRows(table: ValidatedTable): Promise<unknown[]> {
 
 export type DataHealth = Record<ValidatedTable, number>;
 
+/**
+ * Number of rows in a table that fail validation. Streams rows with a cursor
+ * so large tables (e.g. attachment contents) are never held in memory at once.
+ */
+export async function countInvalid(table: ValidatedTable): Promise<number> {
+  const schema = TABLE_SCHEMAS[table];
+  let invalid = 0;
+  await getDb()
+    .table(table)
+    .each((row: unknown) => {
+      if (!schema.safeParse(row).success) invalid++;
+    });
+  return invalid;
+}
+
 /** Invalid row counts per table. */
 export async function readDataHealth(): Promise<DataHealth> {
   const entries = await Promise.all(
-    VALIDATED_TABLES.map(async (t) => [t, (await readTable(t)).invalid] as const),
+    VALIDATED_TABLES.map(async (t) => [t, await countInvalid(t)] as const),
   );
   return Object.fromEntries(entries) as DataHealth;
 }

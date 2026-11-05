@@ -1,16 +1,27 @@
 import Dexie, { type EntityTable } from "dexie";
 import type {
+  AnnualInput,
+  Amendment,
   AppSettings,
+  Attachment,
+  AttachmentBlob,
   AuditEntry,
   CatalogItem,
   Counter,
   Customer,
   Expense,
   Filing,
+  Gstr2bImport,
+  Gstr2bMatch,
   Income,
   Invoice,
+  PaymentEntry,
+  PeriodInput,
+  Purchase,
+  Recurring,
   ReturnSnapshot,
   SavedDesign,
+  Vendor,
 } from "@/lib/schema";
 import { useStorageStatus } from "@/stores/storage-status";
 
@@ -34,6 +45,18 @@ export class AppDatabase extends Dexie {
   filings!: EntityTable<Filing, "id">;
   returnSnapshots!: EntityTable<ReturnSnapshot, "id">;
   auditLog!: EntityTable<AuditEntry, "id">;
+  // v3 (Phase 2-4)
+  payments!: EntityTable<PaymentEntry, "id">;
+  amendments!: EntityTable<Amendment, "id">;
+  recurring!: EntityTable<Recurring, "id">;
+  vendors!: EntityTable<Vendor, "id">;
+  purchases!: EntityTable<Purchase, "id">;
+  attachments!: EntityTable<Attachment, "id">;
+  attachmentBlobs!: EntityTable<AttachmentBlob, "id">;
+  gstr2bImports!: EntityTable<Gstr2bImport, "id">;
+  gstr2bMatches!: EntityTable<Gstr2bMatch, "id">;
+  periodInputs!: EntityTable<PeriodInput, "id">;
+  annualInputs!: EntityTable<AnnualInput, "id">;
 
   constructor() {
     super(DB_NAME);
@@ -53,6 +76,24 @@ export class AppDatabase extends Dexie {
       filings: "id, periodKey, returnType, status, updatedAt",
       returnSnapshots: "id, filingId, createdAt",
       auditLog: "id, entity, entityId, at",
+    });
+    // v3: new tables only (payments, amendments, recurring, vendors, purchases,
+    // attachments + their file contents, GSTR-2B imports/matches, period and
+    // annual worksheet inputs). Nothing existing is touched, so the upgrade is
+    // non-destructive; invoices stay on schema v2 and new settings fields
+    // default when settings are read.
+    this.version(3).stores({
+      payments: "id, invoiceId, customerId, date, updatedAt",
+      amendments: "id, originalInvoiceId, originalPeriodKey, amendInPeriodKey, status, updatedAt",
+      recurring: "id, kind, active, nextRunDate, updatedAt",
+      vendors: "id, name, gstin, updatedAt",
+      purchases: "id, vendorId, billDate, dueDate, paymentStatus, updatedAt",
+      attachments: "id, ownerId, ownerType, updatedAt",
+      attachmentBlobs: "id",
+      gstr2bImports: "id, periodKey, updatedAt",
+      gstr2bMatches: "id, importId, rowId, targetId, status, updatedAt",
+      periodInputs: "id, updatedAt",
+      annualInputs: "id, updatedAt",
     });
 
     // Another tab opened a newer version of the app (or deleted the database):
@@ -84,10 +125,11 @@ export function getDb(): AppDatabase {
   return instance;
 }
 
-/** Tables counted by the data-loss marker (see health.ts). */
-export type TableName =
-  "customers" | "items" | "invoices" | "designs" | "expenses" | "incomes" | "filings";
-export const COUNTED_TABLES: TableName[] = [
+/**
+ * Tables counted by the data-loss marker (see health.ts). Attachment file
+ * contents are not counted separately (their metadata rows are).
+ */
+export const COUNTED_TABLES = [
   "customers",
   "items",
   "invoices",
@@ -95,4 +137,15 @@ export const COUNTED_TABLES: TableName[] = [
   "expenses",
   "incomes",
   "filings",
-];
+  "payments",
+  "amendments",
+  "recurring",
+  "vendors",
+  "purchases",
+  "attachments",
+  "gstr2bImports",
+  "gstr2bMatches",
+  "periodInputs",
+  "annualInputs",
+] as const;
+export type TableName = (typeof COUNTED_TABLES)[number];

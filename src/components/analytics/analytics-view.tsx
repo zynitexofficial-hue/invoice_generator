@@ -27,14 +27,18 @@ import {
   type AnalyticsTab,
   type CompareMode,
 } from "./analytics-model";
+import { CollectionsTab } from "./collections-tab";
 import type { TabContext } from "./context";
 import { ExpensesTab } from "./expenses-tab";
 import { GstTab } from "./gst-tab";
+import { ItcTab } from "./itc-tab";
 import { OverviewTab } from "./overview-tab";
+import { PayablesTab } from "./payables-tab";
 import { useAnalyticsPrint, type PrintJob } from "./print-report";
 import { ReceivablesTab } from "./receivables-tab";
 import { RegistersTab } from "./registers-tab";
 import { SalesTab } from "./sales-tab";
+import { YoyTab } from "./yoy-tab";
 import { DISCLAIMER, inrFormatter, pctText, useAnalyticsSource } from "./shared";
 
 /** Update the query string without a navigation (keeps useSearchParams in sync). */
@@ -220,6 +224,14 @@ function TabBody({ tab, ctx }: { tab: AnalyticsTab; ctx: TabContext }) {
       return <ReceivablesTab ctx={ctx} />;
     case "registers":
       return <RegistersTab ctx={ctx} />;
+    case "collections":
+      return <CollectionsTab ctx={ctx} />;
+    case "payables":
+      return <PayablesTab ctx={ctx} />;
+    case "itc":
+      return <ItcTab ctx={ctx} />;
+    case "yoy":
+      return <YoyTab ctx={ctx} />;
   }
 }
 

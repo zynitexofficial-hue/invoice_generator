@@ -14,14 +14,13 @@ import {
   settingsStateCode,
   upcomingDeadlines,
 } from "@/lib/gst/returns";
-import { currentPeriod } from "@/lib/period";
+import { currentPeriod, fyKey as fyKeyOf, periodRange } from "@/lib/period";
 import { filingId, type AppSettings, type Expense, type Invoice } from "@/lib/schema";
 import { Page } from "@/components/layout/page";
 import { Skeleton } from "@/components/ui/misc";
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
-import { FilingTab, type FilingItem } from "./filing-tab";
-import { Gstr1Tab, type Formatters } from "./gstr1-tab";
-import { Gstr3bTab } from "./gstr3b-tab";
+import type { FilingItem } from "./filing-tab";
+import type { Formatters } from "./gstr1-tab";
 import { PeriodBar, StatusCard } from "./period-bar";
 import { usePrintSummary } from "./print-portal";
 import {
@@ -33,13 +32,13 @@ import {
   gstr1SnapshotTotals,
   gstr3bSnapshotTotals,
   parsePeriodParam,
-  parseTab,
   periodKindFor,
   returnTitle,
-  type ReturnsTab,
 } from "./returns-data";
 import { ChangedSinceFiledCard, DeadlinesCard, NotApplicableCard } from "./side-cards";
 import { diffSnapshot, mergeChanges } from "./snapshot-diff";
+import type { ReturnsTabContext } from "./tab-context";
+import { parseReturnsTab, visibleReturnsTabs, type ReturnsTabDef } from "./tab-registry";
 
 const DRAFT_BANNER = "Draft prepared from your records — verify on the GST portal or with your CA.";
 
@@ -85,6 +84,36 @@ function useReturnBuilds(
   return { gstr1, gstr3b, deadlines };
 }
 
+/** The tab bar and the active tab's panel, driven by tab-registry.tsx. */
+function ReturnsTabs({
+  tab,
+  tabs,
+  ctx,
+  onTab,
+}: {
+  tab: string;
+  tabs: readonly ReturnsTabDef[];
+  ctx: ReturnsTabContext;
+  onTab: (id: string) => void;
+}) {
+  const active = tabs.find((t) => t.id === tab) ?? tabs[0];
+  return (
+    <Tabs value={tab} onValueChange={onTab} className="mt-6">
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <TabsList
+          aria-label="Return"
+          value={tab}
+          className="mb-4 min-w-max"
+          tabs={tabs.map((t) => ({ value: t.id, label: t.label }))}
+        />
+      </div>
+      <TabsContent value={tab} className="outline-none">
+        {active && <active.Component ctx={ctx} />}
+      </TabsContent>
+    </Tabs>
+  );
+}
+
 export function ReturnsView() {
   const params = useSearchParams();
   const router = useRouter();
@@ -101,7 +130,7 @@ export function ReturnsView() {
     ? (parsePeriodParam(params.get("period"), frequency) ??
       defaultPeriod(frequency, stateCode, today))
     : "";
-  const tab = parseTab(params.get("tab"));
+  const tabParam = params.get("tab");
 
   const g1Id = period ? filingId(period, "GSTR-1") : undefined;
   const g3Id = period ? filingId(period, "GSTR-3B") : undefined;
@@ -119,7 +148,7 @@ export function ReturnsView() {
   );
   const f: Formatters = useMemo(() => ({ money, date }), [money, date]);
 
-  const setQuery = (next: { period?: string; tab?: ReturnsTab }) => {
+  const setQuery = (next: { period?: string; tab?: string }) => {
     const q = new URLSearchParams(params.toString());
     if (next.period) q.set("period", next.period);
     if (next.tab) q.set("tab", next.tab);
@@ -169,7 +198,10 @@ export function ReturnsView() {
             ? "bad_gstin"
             : null;
 
-  if (notApplicable) {
+  // Composition dealers don't file GSTR-1/3B, but registry tabs marked for them (GSTR-4) still show.
+  const audience = notApplicable === null ? "regular" : "composition";
+  const tabs = visibleReturnsTabs(audience);
+  if (notApplicable && !(notApplicable === "composition" && tabs.length > 0)) {
     return (
       <Page title="GST Returns" width="narrow">
         <DraftBanner />
@@ -177,6 +209,7 @@ export function ReturnsView() {
       </Page>
     );
   }
+  const tab = parseReturnsTab(tabParam, tabs);
 
   const kind = periodKindFor(frequency);
   const opts = { frequency, stateCode };
@@ -217,6 +250,40 @@ export function ReturnsView() {
   ];
 
   const deadlinesCard = <DeadlinesCard deadlines={deadlines} filings={filings} formatDate={date} />;
+
+  const ctx: ReturnsTabContext = {
+    settings,
+    invoices,
+    expenses,
+    filings,
+    period,
+    fyKey: fyKeyOf(periodRange(period).start),
+    today,
+    frequency,
+    gstr1,
+    gstr3b,
+    g1Filing,
+    g3Filing,
+    g1Due,
+    g3Due,
+    filingItems,
+    f,
+    onPrint: print,
+    notApplicable,
+  };
+  if (notApplicable === "composition") {
+    return (
+      <Page
+        title="GST Returns"
+        width="wide"
+        description="Annual statement for composition dealers."
+      >
+        <DraftBanner />
+        <NotApplicableCard kind={notApplicable} />
+        <ReturnsTabs tab={tab} tabs={tabs} ctx={ctx} onTab={(t) => setQuery({ tab: t })} />
+      </Page>
+    );
+  }
 
   return (
     <Page
@@ -274,55 +341,7 @@ export function ReturnsView() {
             />
           </div>
 
-          <Tabs
-            value={tab}
-            onValueChange={(t) => setQuery({ tab: t as ReturnsTab })}
-            className="mt-6"
-          >
-            <TabsList
-              aria-label="Return"
-              value={tab}
-              className="mb-4"
-              tabs={[
-                { value: "gstr1", label: "GSTR-1" },
-                { value: "gstr3b", label: "GSTR-3B" },
-                { value: "filing", label: "Filing" },
-              ]}
-            />
-            <TabsContent value="gstr1" className="outline-none">
-              <Gstr1Tab
-                result={gstr1}
-                invoices={invoices}
-                filing={g1Filing}
-                due={g1Due}
-                f={f}
-                onPrint={print}
-              />
-            </TabsContent>
-            <TabsContent value="gstr3b" className="outline-none">
-              <Gstr3bTab
-                result={gstr3b}
-                gstin={gstr1.gstin}
-                invoices={invoices}
-                filing={g3Filing}
-                due={g3Due}
-                f={f}
-                onPrint={print}
-              />
-            </TabsContent>
-            <TabsContent value="filing" className="outline-none">
-              <FilingTab
-                // Remount per period so the estimator inputs start fresh.
-                key={period}
-                items={filingItems}
-                period={period}
-                today={today}
-                aato={settings.gst.aato}
-                dateFormat={settings.formats.dateFormat}
-                f={f}
-              />
-            </TabsContent>
-          </Tabs>
+          <ReturnsTabs tab={tab} tabs={tabs} ctx={ctx} onTab={(t) => setQuery({ tab: t })} />
         </div>
         <aside className="min-w-0 lg:pt-0">{deadlinesCard}</aside>
       </div>
