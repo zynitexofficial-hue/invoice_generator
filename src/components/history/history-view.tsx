@@ -135,7 +135,7 @@ export function HistoryView() {
 
   if (!invoices || !settings) {
     return (
-      <Page title="History" description="Every document saved in this browser.">
+      <Page title="Invoices" description="Every document saved in this browser.">
         <Skeleton className="h-12 w-full rounded-xl" />
         <Skeleton className="mt-4 h-96 w-full rounded-2xl" />
       </Page>
@@ -166,7 +166,7 @@ export function HistoryView() {
 
   return (
     <Page
-      title="History"
+      title="Invoices"
       description={`${invoices.length} ${invoices.length === 1 ? "document" : "documents"} saved in this browser.`}
       width="wide"
       actions={
