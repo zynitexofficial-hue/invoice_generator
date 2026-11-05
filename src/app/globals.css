@@ -1,0 +1,459 @@
+@import "tailwindcss";
+@import "../components/document/document.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------ */
+/* Design tokens — a calm neutral base with a single indigo accent.     */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Form control sizing: 14px text everywhere (the root layout stops iOS Safari from
+ * zooming in on focus); phones get slightly taller 38px controls for easier tapping.
+ */
+:root {
+  --field-h: 2.25rem;
+  --field-font: 0.875rem;
+}
+@media (max-width: 639.98px) {
+  :root {
+    --field-h: 2.375rem;
+  }
+}
+
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(0.985 0.002 264);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.972 0.003 264);
+  --surface-3: oklch(0.951 0.004 264);
+  --foreground: oklch(0.205 0.012 266);
+  --muted-foreground: oklch(0.525 0.016 262);
+  --subtle-foreground: oklch(0.64 0.012 262);
+  --border: oklch(0.922 0.005 264);
+  --border-strong: oklch(0.868 0.007 264);
+  --input: oklch(0.89 0.006 264);
+
+  --primary: oklch(0.525 0.215 274);
+  --primary-hover: oklch(0.475 0.21 274);
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-soft: oklch(0.962 0.028 274);
+  --primary-soft-foreground: oklch(0.45 0.2 274);
+  --ring: oklch(0.6 0.19 274 / 0.32);
+
+  --success: oklch(0.6 0.14 158);
+  --success-soft: oklch(0.962 0.04 158);
+  --success-foreground: oklch(0.42 0.11 158);
+  --warning: oklch(0.74 0.15 70);
+  --warning-soft: oklch(0.97 0.045 85);
+  --warning-foreground: oklch(0.5 0.12 60);
+  --danger: oklch(0.585 0.215 25);
+  --danger-soft: oklch(0.965 0.025 20);
+  --danger-foreground: oklch(0.5 0.2 25);
+  --info: oklch(0.6 0.13 235);
+  --info-soft: oklch(0.965 0.025 235);
+  --info-foreground: oklch(0.45 0.12 240);
+
+  --overlay: oklch(0.2 0.02 266 / 0.32);
+  --shadow-color: 228 30% 18%;
+  --shadow-xs: 0 1px 2px hsl(var(--shadow-color) / 0.05);
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 1px 3px hsl(var(--shadow-color) / 0.05);
+  --shadow-md:
+    0 2px 4px -1px hsl(var(--shadow-color) / 0.06), 0 6px 16px -4px hsl(var(--shadow-color) / 0.1);
+  --shadow-lg:
+    0 8px 16px -6px hsl(var(--shadow-color) / 0.1),
+    0 20px 40px -12px hsl(var(--shadow-color) / 0.18);
+  --shadow-page:
+    0 1px 2px hsl(var(--shadow-color) / 0.08), 0 12px 32px -12px hsl(var(--shadow-color) / 0.22);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+  color-scheme: light;
+}
+
+.dark {
+  --background: oklch(0.155 0.006 266);
+  --surface: oklch(0.195 0.007 266);
+  --surface-2: oklch(0.228 0.008 266);
+  --surface-3: oklch(0.262 0.009 266);
+  --foreground: oklch(0.962 0.003 264);
+  --muted-foreground: oklch(0.7 0.012 262);
+  --subtle-foreground: oklch(0.58 0.012 262);
+  --border: oklch(0.275 0.008 266);
+  --border-strong: oklch(0.335 0.01 266);
+  --input: oklch(0.32 0.01 266);
+
+  --primary: oklch(0.6 0.2 274);
+  --primary-hover: oklch(0.66 0.18 274);
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-soft: oklch(0.29 0.07 274);
+  --primary-soft-foreground: oklch(0.82 0.1 274);
+  --ring: oklch(0.66 0.17 274 / 0.4);
+
+  --success: oklch(0.7 0.14 158);
+  --success-soft: oklch(0.28 0.05 158);
+  --success-foreground: oklch(0.82 0.12 158);
+  --warning: oklch(0.8 0.14 75);
+  --warning-soft: oklch(0.3 0.05 75);
+  --warning-foreground: oklch(0.86 0.12 80);
+  --danger: oklch(0.66 0.2 25);
+  --danger-soft: oklch(0.3 0.07 25);
+  --danger-foreground: oklch(0.82 0.11 25);
+  --info: oklch(0.7 0.12 235);
+  --info-soft: oklch(0.28 0.05 235);
+  --info-foreground: oklch(0.84 0.09 235);
+
+  --overlay: oklch(0.08 0.01 266 / 0.6);
+  --shadow-color: 230 40% 2%;
+  --shadow-xs: 0 1px 2px hsl(var(--shadow-color) / 0.3);
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.35), 0 1px 3px hsl(var(--shadow-color) / 0.25);
+  --shadow-md:
+    0 2px 4px -1px hsl(var(--shadow-color) / 0.35), 0 8px 18px -6px hsl(var(--shadow-color) / 0.5);
+  --shadow-lg:
+    0 8px 18px -6px hsl(var(--shadow-color) / 0.45),
+    0 24px 48px -12px hsl(var(--shadow-color) / 0.6);
+  --shadow-page:
+    0 1px 2px hsl(var(--shadow-color) / 0.4), 0 16px 40px -12px hsl(var(--shadow-color) / 0.7);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-foreground: var(--primary-soft-foreground);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-foreground: var(--info-foreground);
+  --color-overlay: var(--overlay);
+
+  --font-sans: var(--font-inter), var(--font-noto-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-page: var(--shadow-page);
+
+  --ease-out-soft: var(--ease-out);
+  --ease-spring: var(--ease-spring);
+
+  --animate-pop-in: pop-in 180ms var(--ease-out);
+  --animate-pop-out: pop-out 120ms ease-in forwards;
+  --animate-fade-in: fade-in 200ms var(--ease-out);
+  --animate-fade-out: fade-out 150ms ease-in forwards;
+  --animate-dialog-in: dialog-in 240ms var(--ease-out);
+  --animate-dialog-out: dialog-out 150ms ease-in forwards;
+  --animate-sheet-in-right: sheet-in-right 300ms var(--ease-out);
+  --animate-sheet-out-right: sheet-out-right 200ms ease-in forwards;
+  --animate-sheet-in-bottom: sheet-in-bottom 320ms var(--ease-out);
+  --animate-sheet-out-bottom: sheet-out-bottom 200ms ease-in forwards;
+  --animate-sheet-in-left: sheet-in-left 300ms var(--ease-out);
+  --animate-sheet-out-left: sheet-out-left 200ms ease-in forwards;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-spin-slow: spin 0.8s linear infinite;
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(var(--pop-y, -4px)) scale(0.97);
+    }
+  }
+  @keyframes pop-out {
+    to {
+      opacity: 0;
+      transform: translateY(var(--pop-y, -4px)) scale(0.97);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, calc(-50% + 8px)) scale(0.98);
+    }
+  }
+  @keyframes dialog-out {
+    to {
+      opacity: 0;
+      transform: translate(-50%, calc(-50% + 4px)) scale(0.98);
+    }
+  }
+  @keyframes sheet-in-right {
+    from {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes sheet-out-right {
+    to {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes sheet-in-left {
+    from {
+      transform: translateX(-100%);
+    }
+  }
+  @keyframes sheet-out-left {
+    to {
+      transform: translateX(-100%);
+    }
+  }
+  @keyframes sheet-in-bottom {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes sheet-out-bottom {
+    to {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes shimmer {
+    0% {
+      background-position: -400px 0;
+    }
+    100% {
+      background-position: 400px 0;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 22%, transparent);
+  }
+
+  :focus-visible {
+    outline: none;
+  }
+
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* Thin, theme-aware scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility focus-ring {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--primary),
+    0 0 0 4px var(--ring);
+}
+
+@utility skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 0px,
+    var(--surface-3) 200px,
+    var(--surface-2) 400px
+  );
+  background-size: 800px 100%;
+  animation: var(--animate-shimmer);
+}
+
+/*
+ * Scroll-driven reveal for marketing sections. Pure CSS: content is fully
+ * visible without JS or in browsers without scroll timelines, and nothing
+ * runs on the main thread while scrolling. Stagger with --reveal-start/end.
+ */
+@utility reveal {
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      animation: reveal-up auto var(--ease-out) both;
+      animation-timeline: view();
+      animation-range: entry var(--reveal-start, 0%) cover var(--reveal-end, 22%);
+    }
+  }
+}
+
+@keyframes float {
+  50% {
+    translate: 0 -6px;
+  }
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    translate: 0 32px;
+    scale: 0.98;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Printing — only the document pages are printed.                     */
+/* ------------------------------------------------------------------ */
+
+#print-root {
+  display: none;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  body > *:not(#print-root) {
+    display: none !important;
+  }
+  #print-root {
+    display: block !important;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Long-form guide content                                             */
+/* ------------------------------------------------------------------ */
+
+.guide-prose {
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--foreground);
+}
+.guide-prose h2 {
+  margin-top: 2.6rem;
+  margin-bottom: 0.9rem;
+  font-size: 1.45rem;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.guide-prose section:first-child h2 {
+  margin-top: 0;
+}
+.guide-prose p {
+  margin: 0.9rem 0;
+  color: color-mix(in oklch, var(--foreground) 88%, var(--muted-foreground));
+}
+.guide-prose ul {
+  margin: 0.9rem 0;
+  padding-left: 1.3rem;
+  list-style: disc;
+}
+.guide-prose ol {
+  margin: 0.9rem 0;
+  padding-left: 1.5rem;
+  list-style: decimal;
+}
+/* Plain links (e.g. to gst.gov.in); internal links bring their own classes. */
+.guide-prose a:not([class]) {
+  font-weight: 500;
+  color: var(--primary);
+  text-underline-offset: 4px;
+}
+.guide-prose a:not([class]):hover {
+  text-decoration: underline;
+}
+.guide-prose li {
+  margin: 0.35rem 0;
+}
+.guide-prose li::marker {
+  color: var(--primary);
+}
+.guide-prose b {
+  font-weight: 600;
+  color: var(--foreground);
+}
+.guide-prose code {
+  border-radius: 0.375rem;
+  background: var(--surface-2);
+  padding: 0.1rem 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}

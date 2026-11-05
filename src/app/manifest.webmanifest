@@ -1,0 +1,34 @@
+{
+  "name": "Invoice Studio",
+  "short_name": "Invoices",
+  "description": "Create GST invoices, quotations and bills of supply in your browser. Free and private.",
+  "id": "/dashboard",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fafafb",
+  "theme_color": "#4f46e5",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New invoice",
+      "url": "/invoice?new=1",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "History",
+      "url": "/history",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

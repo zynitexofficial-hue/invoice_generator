@@ -1,0 +1,422 @@
+/*
+ * Invoice document styles — shared by the live preview, thumbnails and print.
+ * Everything here is theme-independent: documents always render on white
+ * paper with the colours chosen in the design customization.
+ */
+
+.doc {
+  --doc-text: #1b1e23;
+  --doc-muted: #646b76;
+  --doc-subtle: #959ba5;
+  --doc-border: #e5e7eb;
+  --doc-border-strong: #d1d5db;
+  --doc-surface: #f5f6f8;
+  --doc-primary-soft: color-mix(in srgb, var(--doc-primary) 9%, #fff);
+  --doc-primary-tint: color-mix(in srgb, var(--doc-primary) 4.5%, #fff);
+  --doc-primary-line: color-mix(in srgb, var(--doc-primary) 28%, #fff);
+  --doc-accent-soft: color-mix(in srgb, var(--doc-accent) 13%, #fff);
+  --doc-row-y: calc(0.5em * var(--doc-d));
+  --doc-cell-x: 0.55em;
+  --doc-gap: calc(1.6em * var(--doc-d));
+
+  font-family: var(--doc-font);
+  font-size: var(--doc-fs);
+  line-height: 1.45;
+  color: var(--doc-text);
+  text-align: left;
+  font-feature-settings: normal;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  -webkit-font-smoothing: antialiased;
+}
+
+.doc *,
+.doc *::before,
+.doc *::after {
+  box-sizing: border-box;
+  border-color: var(--doc-border);
+}
+
+.doc-page {
+  position: relative;
+  width: var(--page-w);
+  height: var(--page-h);
+  padding: var(--pad-t) var(--pad-r) var(--pad-b) var(--pad-l);
+  background: #fff;
+  overflow: hidden;
+}
+
+/* Hidden measuring copy: same box as a page, unconstrained height. */
+.doc-measure {
+  position: fixed !important;
+  left: -100000px;
+  top: 0;
+  height: auto !important;
+  visibility: hidden;
+  pointer-events: none;
+  contain: layout style;
+}
+
+.doc-block {
+  display: flow-root;
+}
+
+.doc-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.doc-pre {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.doc-break {
+  overflow-wrap: anywhere;
+}
+
+.doc-label {
+  font-size: 0.74em;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--doc-muted);
+}
+
+.doc-muted {
+  color: var(--doc-muted);
+}
+
+.doc-strong {
+  font-weight: 600;
+}
+
+/* ---------------- Line item table (CSS grid rows) ---------------- */
+
+.doc-grid {
+  display: grid;
+  grid-template-columns: var(--doc-cols);
+  align-items: start;
+}
+
+.doc-th {
+  padding: calc(0.55em * var(--doc-d)) var(--doc-cell-x);
+  font-size: 0.74em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+
+.doc-td {
+  padding: var(--doc-row-y) var(--doc-cell-x);
+  min-width: 0;
+}
+
+.doc-align-right {
+  text-align: right;
+}
+
+.doc-align-center {
+  text-align: center;
+}
+
+.doc-item-name {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.doc-item-desc {
+  margin-top: 0.15em;
+  font-size: 0.9em;
+  color: var(--doc-muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.doc-tax-amt {
+  display: block;
+  font-size: 0.86em;
+  color: var(--doc-muted);
+}
+
+.doc-empty-row {
+  padding: 1.6em var(--doc-cell-x);
+  text-align: center;
+  color: var(--doc-subtle);
+  font-style: italic;
+}
+
+/* striped (default): solid header, zebra rows */
+.doc[data-table="striped"] .doc-thead {
+  background: var(--doc-primary);
+  color: var(--doc-on-primary);
+  border-radius: 0.35em;
+}
+.doc[data-table="striped"] .doc-row[data-odd="true"] {
+  background: var(--doc-primary-tint);
+}
+.doc[data-table="striped"] .doc-row {
+  border-radius: 0.3em;
+}
+
+/* bordered: full grid lines */
+.doc[data-table="bordered"] .doc-thead {
+  background: var(--doc-primary-soft);
+  border: 1px solid var(--doc-border-strong);
+  color: var(--doc-text);
+}
+.doc[data-table="bordered"] .doc-row {
+  border: 1px solid var(--doc-border-strong);
+  border-top: 0;
+}
+.doc[data-table="bordered"] .doc-thead > .doc-th + .doc-th,
+.doc[data-table="bordered"] .doc-row > .doc-td + .doc-td {
+  border-left: 1px solid var(--doc-border-strong);
+}
+
+/* minimal: hairline under the header only */
+.doc[data-table="minimal"] .doc-thead {
+  border-bottom: 1.5px solid var(--doc-text);
+  color: var(--doc-text);
+}
+.doc[data-table="minimal"] .doc-th {
+  padding-left: 0;
+  padding-right: 1em;
+}
+.doc[data-table="minimal"] .doc-td {
+  padding-left: 0;
+  padding-right: 1em;
+  padding-top: calc(var(--doc-row-y) * 1.25);
+  padding-bottom: calc(var(--doc-row-y) * 1.25);
+}
+.doc[data-table="minimal"] .doc-th:last-child,
+.doc[data-table="minimal"] .doc-td:last-child {
+  padding-right: 0;
+}
+
+/* ruled: accent header rule, thin row rules */
+.doc[data-table="ruled"] .doc-thead {
+  border-bottom: 2px solid var(--doc-primary);
+  color: var(--doc-primary);
+}
+.doc[data-table="ruled"] .doc-row {
+  border-bottom: 1px solid var(--doc-border);
+}
+
+/* ---------------- Totals ---------------- */
+
+.doc-totals {
+  margin-left: auto;
+  width: min(100%, 21em);
+}
+
+.doc-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.5em;
+  padding: calc(0.28em * var(--doc-d)) 0;
+}
+
+.doc-total-row[data-tone="muted"] {
+  color: var(--doc-muted);
+}
+
+.doc-total-row[data-tone="discount"] .doc-num {
+  color: #15803d;
+}
+
+.doc-total-row[data-tone="grand"] {
+  margin-top: 0.35em;
+  padding-top: 0.55em;
+  border-top: 1px solid var(--doc-border-strong);
+  font-size: 1.12em;
+  font-weight: 700;
+}
+
+.doc-total-row[data-tone="balance"] {
+  margin-top: 0.3em;
+  padding: 0.5em 0.7em;
+  border-radius: 0.4em;
+  background: var(--doc-primary-soft);
+  color: var(--doc-primary);
+  font-weight: 700;
+}
+
+/* ---------------- Misc blocks ---------------- */
+
+.doc-section {
+  padding-top: var(--doc-gap);
+}
+
+.doc-box {
+  border: 1px solid var(--doc-border);
+  border-radius: 0.5em;
+  padding: 0.8em 0.95em;
+}
+
+.doc-kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.9em;
+  row-gap: 0.12em;
+}
+
+.doc-kv > dt {
+  color: var(--doc-muted);
+  white-space: nowrap;
+}
+
+.doc-kv > dd {
+  margin: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.doc-subtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+.doc-subtable th,
+.doc-subtable td {
+  padding: 0.35em 0.55em;
+  border: 1px solid var(--doc-border);
+  text-align: right;
+}
+.doc-subtable th:first-child,
+.doc-subtable td:first-child {
+  text-align: left;
+}
+.doc-subtable thead th {
+  background: var(--doc-surface);
+  font-weight: 600;
+  font-size: 0.9em;
+}
+.doc-subtable tfoot td {
+  font-weight: 600;
+  background: var(--doc-surface);
+}
+
+.doc-logo {
+  display: block;
+  object-fit: contain;
+  object-position: left center;
+  /* Softens square logos with a solid background; transparent logos are unaffected. */
+  border-radius: 0.5em;
+}
+.doc-logo[data-size="sm"] {
+  max-height: 2.6em;
+  max-width: 8em;
+}
+.doc-logo[data-size="md"] {
+  max-height: 3.8em;
+  max-width: 11em;
+}
+.doc-logo[data-size="lg"] {
+  max-height: 5.4em;
+  max-width: 15em;
+}
+
+.doc-qr {
+  width: 6.4em;
+  height: 6.4em;
+  display: block;
+}
+
+.doc-signature-img {
+  max-height: 3.6em;
+  max-width: 11em;
+  object-fit: contain;
+  margin-left: auto;
+  display: block;
+}
+
+.doc-footer {
+  position: absolute;
+  left: var(--pad-l);
+  right: var(--pad-r);
+  bottom: 0;
+  height: var(--pad-b);
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  font-size: 0.78em;
+  color: var(--doc-muted);
+}
+
+.doc-footer[data-align="center"] {
+  justify-content: center;
+  text-align: center;
+}
+.doc-footer[data-align="right"] {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.doc-stamp {
+  position: absolute;
+  z-index: 2;
+  padding: 0.35em 0.9em;
+  border: 0.18em solid currentColor;
+  border-radius: 0.35em;
+  font-size: 1.55em;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  transform: rotate(-14deg);
+  opacity: 0.72;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+.doc-stamp[data-status="PAID"] {
+  color: #16a34a;
+}
+.doc-stamp[data-status="PARTIALLY PAID"] {
+  color: #d97706;
+}
+
+/* ---------------- Print ---------------- */
+
+@media print {
+  #print-root .doc-page {
+    height: calc(var(--page-h) - 0.6mm);
+    break-after: page;
+    page-break-after: always;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+  #print-root .doc-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
+/* ---------------- Scaled preview frames ---------------- */
+
+.doc-scaled {
+  position: relative;
+  flex-shrink: 0;
+  width: calc(var(--page-w) * var(--s, 1));
+  height: calc(var(--page-h) * var(--s, 1));
+  overflow: hidden;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: var(--shadow-page);
+}
+
+.doc-scaled > .doc-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: scale(var(--s, 1));
+  transform-origin: 0 0;
+}
+
+/* Stamp shown inside the totals block, so it never covers line items. */
+.doc-stamp.doc-stamp-inline {
+  position: relative;
+  display: inline-block;
+  font-size: 1.05em;
+  transform: rotate(-5deg);
+}
