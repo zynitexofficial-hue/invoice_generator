@@ -975,6 +975,10 @@ export const paymentEntrySchema = z.object({
   customerName: text(160),
   date: isoDate,
   amount: decimalText,
+  /** Currency of `amount` ("" = the invoice's currency, INR for advances). */
+  currency: z.string().max(3).default(""),
+  /** INR per unit of `currency` for advances in a foreign currency ("" = 1). */
+  exchangeRate: decimalText,
   mode: z.enum(PAYMENT_MODES).default(""),
   /** UPI ref / cheque no. / bank UTR. */
   reference: text(80),

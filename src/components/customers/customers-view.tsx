@@ -7,6 +7,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  ScrollText,
   Search,
   Trash,
   TriangleAlert,
@@ -224,6 +225,12 @@ export function CustomersView() {
                               onSelect={() => router.push(`/invoice?new=1&customer=${c.id}`)}
                             >
                               New invoice
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              icon={<ScrollText />}
+                              onSelect={() => router.push(`/customers/statement?customer=${c.id}`)}
+                            >
+                              Statement
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               icon={<Pencil />}

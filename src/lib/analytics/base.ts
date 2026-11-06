@@ -201,7 +201,7 @@ export interface InvoiceFact {
 
 export type InvoiceFactResult = { fact: InvoiceFact } | { excluded: Exclusion };
 
-function customerIdentity(invoice: Invoice) {
+export function customerIdentity(invoice: Invoice) {
   const c = invoice.customer;
   const gstin = c.gstin.trim().toUpperCase();
   const name = (c.company || c.name).trim();

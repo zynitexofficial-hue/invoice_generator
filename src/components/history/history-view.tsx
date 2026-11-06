@@ -667,7 +667,7 @@ function RowActions({
         )}
         {meta.hasPayment && inv.status !== "cancelled" && (
           <DropdownMenuItem icon={<Wallet />} onSelect={() => onPay(inv)}>
-            Record payment
+            Payments and receipts
           </DropdownMenuItem>
         )}
         <DropdownMenuItem icon={<History />} onSelect={() => openChangeHistory(inv)}>
