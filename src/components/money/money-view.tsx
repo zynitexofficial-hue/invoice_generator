@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { deleteAttachmentsFor } from "@/db/attachments";
 import { deleteExpense } from "@/db/expenses";
 import { useDataHealth, useExpenses, useIncomes, useSettings } from "@/db/hooks";
 import { deleteIncome } from "@/db/incomes";
@@ -219,6 +220,7 @@ export function MoneyView() {
     if (!ok) return;
     try {
       await deleteExpense(e.id);
+      await deleteAttachmentsFor("expense", e.id); // [D] receipts go with the expense
       toast.success("Expense deleted");
     } catch {
       /* storage error dialog already shown */
