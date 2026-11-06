@@ -2,6 +2,7 @@
 
 import { Ellipsis, Package, Pencil, Plus, Search, Trash, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useItems, useSettings } from "@/db/hooks";
@@ -89,10 +90,15 @@ export function ItemsView() {
       title="Items"
       description="Products and services you bill often — add them to invoices in one click."
       actions={
-        <Button variant="primary" onClick={() => setEditing(blank())}>
-          <Plus />
-          Add item
-        </Button>
+        <>
+          <Button variant="secondary" asChild>
+            <Link href="/import">Import CSV</Link>
+          </Button>
+          <Button variant="primary" onClick={() => setEditing(blank())}>
+            <Plus />
+            Add item
+          </Button>
+        </>
       }
     >
       {items.length === 0 ? (

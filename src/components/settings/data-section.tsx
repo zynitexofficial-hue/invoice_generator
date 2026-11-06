@@ -27,6 +27,7 @@ import { setSessionPassphrase } from "@/lib/auto-backup";
 import { AutoBackupCard } from "./auto-backup-card";
 import { PrivacyNoticeCard } from "./privacy-notice-card";
 import { ProtectStorage } from "./protect-storage";
+import { RecurringCard } from "./recurring-card";
 import { RetentionCard } from "./retention-card";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -251,6 +252,7 @@ export function DataSection() {
       <DataHealthCard />
 
       {settings && <AutoBackupCard settings={settings} />}
+      {settings && <RecurringCard settings={settings} />}
       {settings && <RetentionCard settings={settings} />}
       {settings && <PrivacyNoticeCard settings={settings} />}
 

@@ -1076,8 +1076,10 @@ export const recurringSchema = z.object({
   runCount: z.number().int().min(0).default(0),
   /** 0 = unlimited. */
   maxRuns: z.number().int().min(0).default(0),
-  /** Issue generated invoices immediately instead of leaving them as drafts. */
+  /** Issue generated invoices immediately. Not offered in the UI: generated invoices are always drafts. */
   autoIssue: z.boolean().default(false),
+  /** "auto" = create due drafts when the app opens (small catch-ups only); "ask" = wait for the user. */
+  mode: z.enum(["auto", "ask"]).default("ask"),
   /**
    * Partial Invoice (kind "invoice") or Expense (kind "expense") to copy.
    * Validate with invoiceSchema/expenseSchema when generating.
