@@ -1362,6 +1362,19 @@ export const annualInputSchema = z.object({
       notes: text(2000),
     })
     .prefault({}),
+  /** Manual fields of the CA tax pack (all optional, defaults empty). */
+  taxPack: z
+    .object({
+      /** Income-tax TDS deducted by your customers from your receipts. */
+      tdsDeductedByCustomers: decimalText,
+      /** GST TCS collected by e-commerce operators (s.52) on your sales. */
+      tcsByEcommerce: decimalText,
+      /** TDS you deducted from payments you made (to deposit/report). */
+      tdsDeductedByYou: decimalText,
+      fixedAssetNote: text(2000),
+      notes: text(2000),
+    })
+    .prefault({}),
   notes: text(2000),
   createdAt: isoDateTime,
   updatedAt: isoDateTime,
