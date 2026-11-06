@@ -1,15 +1,9 @@
 "use client";
 
-import { ComingSoon } from "@/components/coming-soon";
+import { Gstr2bView } from "../gstr2b/gstr2b-view";
 import type { ReturnsTabContext } from "../tab-context";
 
-/** Owner: feature E — replace this file with the real tab. */
+/** Returns > GSTR-2B: import the portal statement and match it with purchase bills and expenses. */
 export function Gstr2bPanel({ ctx }: { ctx: ReturnsTabContext }) {
-  void ctx;
-  return (
-    <ComingSoon
-      title="GSTR-2B and IMS"
-      description="Import GSTR-2B and match it with your purchase bills and expenses."
-    />
-  );
+  return <Gstr2bView ctx={ctx} />;
 }

@@ -14,6 +14,7 @@ import {
   type Gstr3bRow,
   type TaxHeads,
 } from "@/lib/gst/returns";
+import type { Gstr3bWorksheet } from "@/lib/gst/gstr3b";
 import { periodKind, periodLabel } from "@/lib/period";
 import { filingId, type Filing, type Invoice } from "@/lib/schema";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Collapse } from "@/components/ui/collapse";
 import { IssueList, useRecordLabel, type Formatters } from "./gstr1-tab";
+import { WorksheetPrintTables, worksheetCsvRows } from "./gstr3b/worksheet-export";
 import {
   GSTR3B_CSV_HEADERS,
   GSTR3B_GROUPS,
@@ -121,8 +123,22 @@ function HeadsRow({
   );
 }
 
-function Gstr3bPrint({ result, gstin, f }: { result: Gstr3bResult; gstin: string; f: Formatters }) {
+function Gstr3bPrint({
+  result,
+  gstin,
+  f,
+  worksheet,
+}: {
+  result: Gstr3bResult;
+  gstin: string;
+  f: Formatters;
+  worksheet?: Gstr3bWorksheet;
+}) {
   const p = result.payable;
+  // With the full worksheet, Table 4 and the payable estimate come from it instead.
+  const printRows = worksheet
+    ? result.rows.filter((r) => !r.id.startsWith("4") && r.id !== "3.1(d)")
+    : result.rows;
   return (
     <div>
       <h1>GSTR-3B worksheet — {periodLabel(result.periodKey)}</h1>
@@ -144,7 +160,7 @@ function Gstr3bPrint({ result, gstin, f }: { result: Gstr3bResult; gstin: string
           </tr>
         </thead>
         <tbody>
-          {result.rows.map((r) => (
+          {printRows.map((r) => (
             <tr key={r.id}>
               <td>{r.id}</td>
               <td>{r.label}</td>
@@ -166,41 +182,46 @@ function Gstr3bPrint({ result, gstin, f }: { result: Gstr3bResult; gstin: string
           ))}
         </tbody>
       </table>
-      <h2>Estimated payable (per head)</h2>
-      <table>
-        <thead>
-          <tr>
-            <th />
-            <th className="num">IGST</th>
-            <th className="num">CGST</th>
-            <th className="num">SGST</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(
-            [
-              ["Output tax", p.outputTax],
-              ["Reverse charge (cash)", p.rcmTax],
-              ["Net ITC (4C)", p.netItc],
-              ["Payable in cash", p.cashPayable],
-              ["ITC balance", p.itcBalance],
-            ] as const
-          ).map(([label, h]) => (
-            <tr key={label}>
-              <td>{label}</td>
-              <td className="num">{f.money(h.igst)}</td>
-              <td className="num">{f.money(h.cgst)}</td>
-              <td className="num">{f.money(h.sgst)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <h2>Notes</h2>
-      <ul>
-        {result.notes.map((n) => (
-          <li key={n}>{n}</li>
-        ))}
-      </ul>
+      {worksheet && <WorksheetPrintTables ws={worksheet} f={f} />}
+      {!worksheet && (
+        <>
+          <h2>Estimated payable (per head)</h2>
+          <table>
+            <thead>
+              <tr>
+                <th />
+                <th className="num">IGST</th>
+                <th className="num">CGST</th>
+                <th className="num">SGST</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(
+                [
+                  ["Output tax", p.outputTax],
+                  ["Reverse charge (cash)", p.rcmTax],
+                  ["Net ITC (4C)", p.netItc],
+                  ["Payable in cash", p.cashPayable],
+                  ["ITC balance", p.itcBalance],
+                ] as const
+              ).map(([label, h]) => (
+                <tr key={label}>
+                  <td>{label}</td>
+                  <td className="num">{f.money(h.igst)}</td>
+                  <td className="num">{f.money(h.cgst)}</td>
+                  <td className="num">{f.money(h.sgst)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <h2>Notes</h2>
+          <ul>
+            {result.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
@@ -213,7 +234,12 @@ export function Gstr3bTab({
   due,
   f,
   onPrint,
+  worksheet,
+  worksheetSlot,
 }: {
+  /** Full worksheet (feature E): replaces the Table 4 and payable cards, which `worksheetSlot` renders. */
+  worksheet?: Gstr3bWorksheet;
+  worksheetSlot?: ReactNode;
   result: Gstr3bResult;
   gstin: string;
   invoices: Invoice[];
@@ -233,11 +259,21 @@ export function Gstr3bTab({
 
   const downloadSheet = async () => {
     const now = new Date().toISOString();
-    downloadCsv(
-      fileBase,
-      GSTR3B_CSV_HEADERS,
-      gstr3bCsvRows(result, { gstin, generatedAt: now, draftNote: DRAFT_NOTE }),
-    );
+    const rows = gstr3bCsvRows(result, { gstin, generatedAt: now, draftNote: DRAFT_NOTE });
+    // Full worksheet: drop the Phase 1 ITC/payable lines and add the complete Table 4 and set-off.
+    const out = worksheet
+      ? [
+          ...rows.filter(
+            (r) =>
+              !(
+                typeof r[0] === "string" &&
+                (r[0] === "Estimate" || r[0] === "3.1(d)" || /^4[A-D]/.test(r[0]))
+              ),
+          ),
+          ...worksheetCsvRows(worksheet),
+        ]
+      : rows;
+    downloadCsv(fileBase, GSTR3B_CSV_HEADERS, out);
     try {
       await upsertFiling({
         periodKey: period,
@@ -289,7 +325,10 @@ export function Gstr3bTab({
           <Button
             variant="ghost"
             onClick={() =>
-              onPrint(`${fileBase}_worksheet`, <Gstr3bPrint result={result} gstin={gstin} f={f} />)
+              onPrint(
+                `${fileBase}_worksheet`,
+                <Gstr3bPrint result={result} gstin={gstin} f={f} worksheet={worksheet} />,
+              )
             }
           >
             <Printer />
@@ -298,16 +337,18 @@ export function Gstr3bTab({
         </div>
       </Card>
 
-      {GSTR3B_GROUPS.map((g, gi) => (
+      {(worksheet ? GSTR3B_GROUPS.slice(0, 1) : GSTR3B_GROUPS).map((g, gi) => (
         <Card key={g.title} className="overflow-hidden">
           <CardHeader title={g.title} />
           <div className="mt-3">
             <HeaderRow first="Row" cols={["Taxable", "IGST", "CGST", "SGST"]} />
           </div>
           <ul className="divide-y divide-border border-t border-border @3xl:border-t-0">
-            {g.ids.map((id) => (
-              <WorksheetRow key={id} row={gstr3bRow(result, id)} f={f} />
-            ))}
+            {g.ids
+              .filter((id) => !worksheet || id !== "3.1(d)")
+              .map((id) => (
+                <WorksheetRow key={id} row={gstr3bRow(result, id)} f={f} />
+              ))}
           </ul>
           {gi === 0 && (
             <div className="border-t border-border">
@@ -343,22 +384,26 @@ export function Gstr3bTab({
         </Card>
       ))}
 
-      <Card className="@container overflow-hidden">
-        <CardHeader
-          title="Estimated payable"
-          description="Per tax head, after using ITC. Reverse-charge tax is always paid in cash."
-        />
-        <div className="mt-3">
-          <HeaderRow first="" cols={["", "IGST", "CGST", "SGST"]} />
-        </div>
-        <ul className="divide-y divide-border border-t border-border @3xl:border-t-0">
-          <HeadsRow label="Output tax (3.1(a) + 3.1(b))" heads={p.outputTax} f={f} />
-          <HeadsRow label="Less: net ITC (4C)" heads={p.netItc} f={f} />
-          <HeadsRow label="Add: reverse charge (3.1(d))" heads={p.rcmTax} f={f} />
-          <HeadsRow label="Tax payable in cash (estimate)" heads={p.cashPayable} f={f} bold />
-          <HeadsRow label="ITC balance carried forward" heads={p.itcBalance} f={f} />
-        </ul>
-      </Card>
+      {worksheet && worksheetSlot}
+
+      {!worksheet && (
+        <Card className="@container overflow-hidden">
+          <CardHeader
+            title="Estimated payable"
+            description="Per tax head, after using ITC. Reverse-charge tax is always paid in cash."
+          />
+          <div className="mt-3">
+            <HeaderRow first="" cols={["", "IGST", "CGST", "SGST"]} />
+          </div>
+          <ul className="divide-y divide-border border-t border-border @3xl:border-t-0">
+            <HeadsRow label="Output tax (3.1(a) + 3.1(b))" heads={p.outputTax} f={f} />
+            <HeadsRow label="Less: net ITC (4C)" heads={p.netItc} f={f} />
+            <HeadsRow label="Add: reverse charge (3.1(d))" heads={p.rcmTax} f={f} />
+            <HeadsRow label="Tax payable in cash (estimate)" heads={p.cashPayable} f={f} bold />
+            <HeadsRow label="ITC balance carried forward" heads={p.itcBalance} f={f} />
+          </ul>
+        </Card>
+      )}
 
       {expenseIssues.length > 0 && (
         <Card className="@container overflow-hidden">
