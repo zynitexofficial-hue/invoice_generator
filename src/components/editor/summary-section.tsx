@@ -12,6 +12,8 @@ import { toDec } from "@/lib/money";
 import { PAYMENT_MODES, type GstMode, type PaymentMode, type SupplyType } from "@/lib/schema";
 import { fieldId, overpayment } from "@/lib/validation";
 import { cn } from "@/lib/utils";
+import { usePaymentsForInvoice } from "@/db/hooks";
+import { LedgerPayments } from "@/components/payments/editor-payments";
 import { useEditor } from "@/stores/editor-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -250,6 +252,11 @@ export function PaymentSection() {
   );
   const patchPayment = useEditor((s) => s.patchPayment);
   const issue = useFieldIssue(fieldId.amountReceived);
+  // Payment ledger (feature A): saved invoices with ledger rows derive "amount received" from it.
+  const invoiceId = useEditor((s) => s.invoice!.id);
+  const persisted = useEditor((s) => s.persisted);
+  const ledgerRows = usePaymentsForInvoice(persisted ? invoiceId : undefined);
+  const ledgerActive = (ledgerRows?.length ?? 0) > 0;
   if (!DOC_TYPE_META[docType].hasPayment) return null;
   const money = (v: string) => formatMoney(v, currency, settings.formats.numberGrouping);
   const status = totals.paymentStatus;
@@ -278,7 +285,13 @@ export function PaymentSection() {
       }
     >
       <div className="grid gap-2.5 sm:gap-3">
-        <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
+        {persisted && (
+          <LedgerPayments rows={ledgerRows ?? []} settings={settings} ledgerActive={ledgerActive} />
+        )}
+        <div
+          className={ledgerActive ? "hidden" : "grid gap-2.5 sm:grid-cols-2 sm:gap-3"}
+          aria-hidden={ledgerActive}
+        >
           <Field
             label="Amount received"
             id={fieldId.amountReceived}
@@ -303,7 +316,10 @@ export function PaymentSection() {
             />
           </Field>
         </div>
-        <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
+        <div
+          className={ledgerActive ? "hidden" : "grid gap-2.5 sm:grid-cols-2 sm:gap-3"}
+          aria-hidden={ledgerActive}
+        >
           <Field label="Mode" optional>
             <Select<PaymentMode>
               value={payment.mode}
@@ -329,7 +345,7 @@ export function PaymentSection() {
             <div className="text-muted-foreground">Balance due</div>
             <AnimatedAmount value={money(totals.balanceDue)} className="text-lg font-semibold" />
           </div>
-          {status !== "paid" && toDec(totals.grandTotal).greaterThan(0) && (
+          {!ledgerActive && status !== "paid" && toDec(totals.grandTotal).greaterThan(0) && (
             <Button
               size="sm"
               variant="soft"
