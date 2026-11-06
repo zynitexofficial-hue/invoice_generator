@@ -24,7 +24,7 @@ export function NotApplicableCard({
   const content = {
     composition: {
       title: "GSTR-1 and GSTR-3B don't apply to you",
-      text: "You're set up as a composition dealer. Composition dealers file CMP-08 every quarter and GSTR-4 once a year instead — support for those is planned. If you've moved to regular GST, change your registration type in Settings.",
+      text: "You're set up as a composition dealer. Composition dealers file CMP-08 every quarter and GSTR-4 once a year instead — the GSTR-4 tab below prepares the annual worksheet. If you've moved to regular GST, change your registration type in Settings.",
       href: "/settings?section=gst",
       action: "Open Settings → GST",
     },
