@@ -175,7 +175,7 @@ const gstInvoiceFormat: Guide = {
               [
                 "When to issue",
                 "Before or at the time of removal / delivery of goods.",
-                "Within 30 days of supplying the service (Rule 47).",
+                "Within 30 days of supplying the service (45 days for insurers, banks and financial institutions including NBFCs) — Rule 47.",
               ],
               [
                 "Copies (Rule 48)",
@@ -224,7 +224,7 @@ const gstInvoiceFormat: Guide = {
     },
     {
       q: "What is the time limit to issue a GST invoice for services?",
-      a: "A tax invoice for services should be issued within 30 days from the date of supply of the service (Rule 47).",
+      a: "A tax invoice for services should be issued within 30 days from the date of supply of the service (Rule 47). Insurers, banks and financial institutions, including NBFCs, get 45 days.",
     },
   ],
 };
@@ -425,6 +425,17 @@ const billOfSupply: Guide = {
       ),
     },
     {
+      id: "mixed-supplies",
+      heading: "Taxable and exempt supplies together",
+      body: (
+        <p>
+          If you supply both taxable and exempt goods or services to the same buyer, you don’t need
+          two documents: Rule 46A allows a single <b>invoice-cum-bill of supply</b>. Show the
+          taxable and exempt items separately and charge GST only on the taxable ones.
+        </p>
+      ),
+    },
+    {
       id: "declaration",
       heading: "The composition declaration",
       body: (
@@ -582,6 +593,18 @@ const proforma: Guide = {
             ["Recorded in accounts", "No", "No", "Yes"],
           ]}
         />
+      ),
+    },
+    {
+      id: "advance",
+      heading: "If the buyer pays an advance",
+      body: (
+        <p>
+          A proforma invoice is not a receipt for money. When a registered supplier receives an
+          advance, it generally issues a <b>receipt voucher</b> (Rule 50), and for services GST on
+          the advance is usually payable when it is received. The tax invoice is issued later, when
+          the supply is made. Confirm the treatment for your case with your CA.
+        </p>
       ),
     },
     {
@@ -983,13 +1006,14 @@ const creditDebitNote: Guide = {
     },
     {
       id: "invoice-studio",
-      heading: "Credit notes in Invoice Studio",
+      heading: "Credit and debit notes in Invoice Studio",
       body: (
         <p>
-          Invoice Studio does not create credit or debit notes yet — issue them from your accounting
-          software or with your CA. You can still create the original{" "}
-          <Cta href="/invoice?new=1">GST tax invoice</Cta> here, and its number and date are what
-          the credit note must refer to.
+          Open an issued <Cta href="/invoice?new=1">GST tax invoice</Cta> and choose{" "}
+          <b>Create credit note</b> or <b>Create debit note</b>. The note is created from that
+          invoice, so the original invoice number and date that Rule 53(1A) requires are carried
+          over, and credit and debit notes get their own number series (CN and DN by default). Check
+          the tax figures with your CA before you declare the note in your return.
         </p>
       ),
     },

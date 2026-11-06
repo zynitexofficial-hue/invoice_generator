@@ -13,8 +13,8 @@ import {
 
 /*
  * All fonts are self-hosted at build time by next/font — no runtime requests
- * to Google. Only Inter (the UI font) and Noto Sans (the ₹ fallback) are
- * preloaded; document fonts load on demand when a design uses them.
+ * to Google. Only Inter (the UI font) is preloaded; Noto Sans (a glyph fallback)
+ * and the document fonts load on demand when a page or design needs them.
  * `latin-ext` carries the Indian Rupee sign (U+20B9). Options must be literals
  * (next/font analyses them at build time), hence the repetition.
  */
@@ -28,6 +28,10 @@ export const notoSans = Noto_Sans({
   subsets: ["latin", "latin-ext"],
   variable: "--font-noto-sans",
   display: "swap",
+  // Fallback only: Inter already has the ₹ glyph. Preloading it put ~200 KB of
+  // high-priority font bytes ahead of the CSS and delayed first paint on slow
+  // connections. `unicode-range` still loads it on demand if a glyph needs it.
+  preload: false,
 });
 export const roboto = Roboto({
   subsets: ["latin", "latin-ext"],

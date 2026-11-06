@@ -32,7 +32,7 @@ export function BrowserFrame({
           <span className="size-2.5 rounded-full bg-[#febc2e]" />
           <span className="size-2.5 rounded-full bg-[#28c840]" />
         </div>
-        <div className="mx-auto flex h-5 w-full max-w-xs items-center justify-center rounded-md bg-surface px-3 text-[11px] text-subtle-foreground ring-1 ring-border">
+        <div className="mx-auto flex h-5 w-full max-w-xs items-center justify-center rounded-md bg-surface px-3 text-[11px] text-muted-foreground ring-1 ring-border">
           {url}
         </div>
         <div className="w-10" aria-hidden />
