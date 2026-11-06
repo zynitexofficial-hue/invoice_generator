@@ -16,6 +16,7 @@ export const vendorsCrud = defineCrud({
     stateCode: (v) => v.stateCode,
     paymentTermsDays: (v) => String(v.paymentTermsDays),
     openingBalance: (v) => v.openingBalance,
+    msme: (v) => String(v.msme),
     archived: (v) => String(v.archived),
   },
 });

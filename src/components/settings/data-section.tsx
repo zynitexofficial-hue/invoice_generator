@@ -27,6 +27,8 @@ import { setSessionPassphrase } from "@/lib/auto-backup";
 import { AutoBackupCard } from "./auto-backup-card";
 import { PrivacyNoticeCard } from "./privacy-notice-card";
 import { ProtectStorage } from "./protect-storage";
+import { AttachmentsCard } from "./attachments-card";
+import { PurchasesCard } from "./purchases-card";
 import { RetentionCard } from "./retention-card";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -251,6 +253,8 @@ export function DataSection() {
       <DataHealthCard />
 
       {settings && <AutoBackupCard settings={settings} />}
+      {settings && <AttachmentsCard settings={settings} />}
+      {settings && <PurchasesCard settings={settings} />}
       {settings && <RetentionCard settings={settings} />}
       {settings && <PrivacyNoticeCard settings={settings} />}
 

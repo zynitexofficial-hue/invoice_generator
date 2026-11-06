@@ -104,6 +104,33 @@ export async function deleteAttachment(id: string): Promise<void> {
   );
 }
 
+/** Remove every attachment of one record (when the record itself is deleted). */
+export async function deleteAttachmentsFor(
+  ownerType: AttachmentOwnerType,
+  ownerId: string,
+): Promise<number> {
+  const db = getDb();
+  const rows = await db.attachments.where("ownerId").equals(ownerId).toArray();
+  const ids = rows.filter((a) => a.ownerType === ownerType).map((a) => a.id);
+  if (!ids.length) return 0;
+  await guardedWrite(
+    "the change",
+    () =>
+      db.transaction("rw", [db.attachments, db.attachmentBlobs, db.auditLog], async () => {
+        await db.attachments.bulkDelete(ids);
+        await db.attachmentBlobs.bulkDelete(ids);
+        await logAudit({
+          entity: "attachment",
+          entityId: ownerId,
+          action: "delete",
+          summary: `Removed ${ids.length} attached file${ids.length === 1 ? "" : "s"}`,
+        });
+      }),
+    { deletion: true },
+  );
+  return ids.length;
+}
+
 /** Valid attachments of one record, oldest first. */
 export async function listAttachmentsFor(
   ownerType: AttachmentOwnerType,

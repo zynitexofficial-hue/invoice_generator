@@ -4,6 +4,13 @@ import { ChevronDown, Info } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { saveExpense } from "@/db/expenses";
+import { useVendors } from "@/db/hooks";
+import { saveVendor } from "@/db/vendors";
+import { newId } from "@/lib/invoice-factory";
+import {
+  AttachmentPanel,
+  useDiscardUnsavedAttachments,
+} from "@/components/attachments/attachment-panel";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { objectKey, useRetained } from "@/hooks/use-retained";
 import { currencySymbol } from "@/lib/currency";
@@ -159,6 +166,37 @@ function ExpenseForm({
   onClose: () => void;
 }) {
   const [form, setForm] = useState<Form>(() => initialForm(draft, settings));
+  // [D] Receipts: the id exists before the first save so files can be attached right away.
+  const isNew = !draft.id;
+  const [expenseId] = useState(() => draft.id || newId());
+  const savedRef = useRef(false);
+  useDiscardUnsavedAttachments("expense", expenseId, isNew, savedRef);
+  // [D] Saved vendors from the vendor master join the "Paid to" suggestions.
+  const masterVendors = useVendors();
+  const allVendors = useMemo<VendorSuggestion[]>(() => {
+    const master = (masterVendors ?? [])
+      .filter((v) => !v.archived)
+      .map((v) => ({ name: v.name, gstin: v.gstin, stateCode: v.stateCode }));
+    const names = new Set(master.map((v) => v.name.toLowerCase()));
+    return [...master, ...vendors.filter((v) => !names.has(v.name.toLowerCase()))];
+  }, [masterVendors, vendors]);
+  const canSaveVendor =
+    form.vendorName.trim().length > 0 &&
+    masterVendors !== undefined &&
+    !masterVendors.some((v) => v.name.toLowerCase() === form.vendorName.trim().toLowerCase());
+  const quickAddVendor = async () => {
+    try {
+      await saveVendor({
+        name: form.vendorName.trim(),
+        gstin: gstinCheck.valid ? form.vendorGstin : "",
+        stateCode: form.vendorStateCode,
+        paymentTermsDays: settings.purchases.defaultPaymentDays,
+      });
+      toast.success("Saved to your vendors");
+    } catch {
+      /* storage error dialog already shown */
+    }
+  };
   const [gstOpen, setGstOpen] = useState(form.hasGst);
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -248,6 +286,7 @@ function ExpenseForm({
       const paid = form.paymentStatus !== "unpaid";
       await saveExpense({
         ...draft,
+        id: expenseId,
         date: form.date,
         amount: form.amount,
         category: form.category,
@@ -268,6 +307,7 @@ function ExpenseForm({
         itcType: form.itcType,
         reverseCharge: form.hasGst && form.reverseCharge,
       });
+      savedRef.current = true;
       toast.success(draft.id ? "Expense updated" : "Expense added");
       onClose();
     } catch {
@@ -347,7 +387,7 @@ function ExpenseForm({
         <AutocompleteInput<VendorSuggestion>
           value={form.vendorName}
           onChange={(vendorName) => set({ vendorName: vendorName.slice(0, 160) })}
-          suggestions={vendors}
+          suggestions={allVendors}
           getKey={(v) => v.name.toLowerCase()}
           getLabel={(v) => v.name}
           getDescription={(v) => v.gstin || undefined}
@@ -363,8 +403,19 @@ function ExpenseForm({
             })
           }
           placeholder="Vendor or person"
-          heading="Paid before"
+          heading="Your vendors"
         />
+        {canSaveVendor && (
+          <Button
+            variant="ghost"
+            size="xs"
+            type="button"
+            className="mt-1.5"
+            onClick={() => void quickAddVendor()}
+          >
+            Save &ldquo;{form.vendorName.trim()}&rdquo; as a vendor
+          </Button>
+        )}
       </Field>
 
       <Field label="Payment">
@@ -573,6 +624,8 @@ function ExpenseForm({
           maxLength={1000}
         />
       </Field>
+
+      <AttachmentPanel ownerType="expense" ownerId={expenseId} />
 
       <div
         className="rounded-xl bg-surface-2/70 px-4 py-3 text-sm ring-1 ring-border"

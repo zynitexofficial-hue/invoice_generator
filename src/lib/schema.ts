@@ -1119,6 +1119,8 @@ export const vendorSchema = z.object({
   openingBalance: decimalText,
   openingBalanceDate: isoDate,
   defaultCategory: text(60),
+  /** Registered micro or small enterprise: bills are due within 45 days (s.43B(h)). */
+  msme: z.boolean().default(false),
   notes: text(1000),
   archived: z.boolean().default(false),
   createdAt: isoDateTime,
