@@ -7,15 +7,29 @@
 
 ---
 
-## Implementation status (as of 5 Nov 2026, branch `dev`)
+## Implementation status (as of 6 Nov 2026, branch `dev`)
 
-- **Built (P0 + P1):** sections A, B, D, E, F (F1–F10), G, H and I, plus C1, C2 and C5. Typecheck, 416 unit tests and the production build pass.
-- **C5 (share):** a *Share…* dialog (History row menu and editor menu) with an editable, prefilled message and WhatsApp (`wa.me`), email (`mailto:`), copy and Web Share buttons. The message includes the existing UPI pay link. The PDF is not attached automatically because it comes from the browser print dialog; the dialog tells the user to attach it.
-- **A11 (audit log):** the log is written for invoices, expenses, incomes and filings; a per-document *History of changes* dialog (History row menu and editor menu) shows invoice entries. Expenses, incomes and filings have no view yet.
-- **Phase 2-4 foundation (landed):** Dexie v3, backup v3, schemas, DB layer, hooks and tab/route stubs for the next feature set; see `plans/PHASE2-4-OWNERSHIP.md`. The stubs show "Coming in this release" until built.
-- **Not verified:** GSTR-1/3B output against real returns; cross-browser PDF/print, accessibility and 360 px passes.
-- **Not started:** C3, C4, F11, F12 (P2); D7, D8, F13, K1–K5 (P2/P3); F14 (P4); section J (desktop).
-- Individual P1 rows were not each re-checked one by one; treat "built" as "implemented and covered by tests", not "signed off".
+**All of Phases 1–4 are built for the web app** (the desktop app, section J, is skipped by decision). Typecheck, lint, 704 unit tests and the production build pass, and every route and tab loads without errors at desktop and 360 px width (checked on an empty database).
+
+- **P0/P1:** sections A–I, C1, C2, C5 (Share dialog), A11 (History of changes per invoice; other records are logged but have no view).
+- **Phase 2:** payment ledger with receipts and advances (C3), customer statements (C4), GSTR-1A amendments (F11), e-invoice JSON, IRN entry and CSV preview (F12), recurring invoices (K1), CSV import (K2), collection analytics.
+- **Phase 3:** vendor master, purchase bills, payables ageing, vendor statements, MSME 45-day alerts, cash-flow report, receipt attachments (D7, D8, K3, K4), GSTR-2B import and ITC matching (F13), full GSTR-3B worksheet.
+- **Phase 4:** GSTR-9 worksheet and GSTR-9C checklist (F14), GSTR-4 for composition dealers, annual P&L and CA tax pack (K5), year-over-year analytics.
+
+**Verification still required before anyone files from this app**
+- GSTR-1/3B/9 output has not been checked against real invoices or by a CA.
+- The official schemas could not be fetched (GST portal hosts are blocked in the build environment). Field names and rules were written from memory and are marked `verify` in code and UI: the e-invoice bulk JSON (INV-1 style), the GSTR-2B JSON and Excel columns, GSTR-1A table keys, and the GSTR-9/9C/4 row structure, thresholds and due dates. Test each import/export against a real portal file.
+- Cross-browser PDF/print, accessibility and real-data passes are not done.
+
+**Known gaps**
+- Amendments: the filed snapshot stores only a hash, so original values of an edited filed document are typed in by the user.
+- GSTR-9: deemed exports, advances, imports, ISD and Table 8A are manual rows; Table 18 has no HSN detail.
+- GSTR-2B: IMS is a stored per-row action, not a portal-style IMS summary. 4A(1)/(2)/(4) and 4B/4D are manual or 2B-suggested.
+- Recurring: needs the app to be opened (no background jobs); drafts for past financial years are numbered from today's series.
+- Payments: no Settings card for the receipt prefix; deleting a draft invoice leaves its ledger rows as orphans.
+- Vendor opening balances are not aged; partly paid expenses are left out of cash flow.
+- Tax pack downloads sequential CSVs (no zip).
+- Not built, by design: direct GSTN/IRP filing, e-way bill, cloud sync, reminders (need a backend), desktop app.
 
 ---
 

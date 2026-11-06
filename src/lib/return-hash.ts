@@ -91,7 +91,6 @@ export function invoiceReturnFields(invoice: Invoice) {
     sez: invoice.sez,
     exportDetails: invoice.exportDetails,
     note: invoice.note,
-    eInvoice: { irn: invoice.eInvoice.irn, status: invoice.eInvoice.status },
   };
 }
 

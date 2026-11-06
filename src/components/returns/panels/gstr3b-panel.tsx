@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { usePeriodInput } from "@/db/hooks";
+import { useAmendments, usePeriodInput } from "@/db/hooks";
 import {
   buildGstr3bWorksheet,
   gstr2bAvailableHeads,
@@ -9,6 +9,7 @@ import {
 } from "@/lib/gst/gstr3b";
 import { monthsInPeriod } from "@/lib/period";
 import { Skeleton } from "@/components/ui/misc";
+import { useAmendmentSections } from "../amendments/use-sections";
 import { Gstr3bTab } from "../gstr3b-tab";
 import { useReconData } from "../gstr2b/use-recon";
 import { useItcSource } from "../gstr3b/use-itc-source";
@@ -26,6 +27,14 @@ export function Gstr3bPanel({ ctx }: { ctx: ReturnsTabContext }) {
   const source = useItcSource();
   const input = usePeriodInput(ctx.period);
   const recon = useReconData();
+  const amendmentRows = useAmendments();
+  // Ready GSTR-1A amendments for this period change the outward tax payable in 3B.
+  const { sections: amendmentSections } = useAmendmentSections(
+    amendmentRows,
+    ctx.period,
+    ctx.invoices,
+    ctx.settings,
+  );
   const months = useMemo(() => monthsInPeriod(ctx.period), [ctx.period]);
   const results = useMemo(
     () => recon.recons.filter((r) => months.includes(r.imp.periodKey)).map((r) => r.result),
@@ -39,8 +48,17 @@ export function Gstr3bPanel({ ctx }: { ctx: ReturnsTabContext }) {
       itcLines: source(ctx.period),
       input,
       gstr2bAvailable: results.length ? gstr2bAvailableHeads(results) : null,
+      amendmentsFromGstr1a:
+        amendmentSections.count > 0
+          ? {
+              igst: amendmentSections.net.igst,
+              cgst: amendmentSections.net.cgst,
+              sgst: amendmentSections.net.sgst,
+              cess: amendmentSections.net.cess,
+            }
+          : undefined,
     });
-  }, [source, input, ctx.gstr3b, ctx.period, results]);
+  }, [source, input, ctx.gstr3b, ctx.period, results, amendmentSections]);
 
   if (!ws || recon.loading) return <Skeleton className="h-96 w-full rounded-2xl" />;
 

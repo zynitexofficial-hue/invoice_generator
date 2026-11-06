@@ -3,9 +3,16 @@
 import { AlertTriangle, X } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useExpenses, useIncomes, useInvoices, usePurchases, useVendors } from "@/db/hooks";
+import {
+  useExpenses,
+  useIncomes,
+  useInvoices,
+  usePayments,
+  usePurchases,
+  useVendors,
+} from "@/db/hooks";
 import { cashFlowReport, cashOutlook } from "@/lib/analytics/cash-flow";
-import { cashInFromInvoices } from "@/lib/analytics/cash-in-source";
+import { cashInFromLedger } from "@/lib/analytics/cash-in-source";
 import {
   CONCENTRATION_THRESHOLD,
   MSME_DAYS,
@@ -46,7 +53,8 @@ export function PayablesTab({ ctx }: { ctx: TabContext }) {
   const invoices = useInvoices();
   const expenses = useExpenses();
   const incomes = useIncomes();
-  if (!purchases || !vendors || !invoices || !expenses || !incomes)
+  const payments = usePayments();
+  if (!purchases || !vendors || !invoices || !expenses || !incomes || !payments)
     return <Skeleton className="h-96 w-full rounded-2xl" />;
   return (
     <Loaded
@@ -56,6 +64,7 @@ export function PayablesTab({ ctx }: { ctx: TabContext }) {
       invoices={invoices}
       expenses={expenses}
       incomes={incomes}
+      payments={payments}
     />
   );
 }
@@ -67,6 +76,7 @@ function Loaded({
   invoices,
   expenses,
   incomes,
+  payments,
 }: {
   ctx: TabContext;
   purchases: NonNullable<ReturnType<typeof usePurchases>>;
@@ -74,6 +84,7 @@ function Loaded({
   invoices: NonNullable<ReturnType<typeof useInvoices>>;
   expenses: NonNullable<ReturnType<typeof useExpenses>>;
   incomes: NonNullable<ReturnType<typeof useIncomes>>;
+  payments: NonNullable<ReturnType<typeof usePayments>>;
 }) {
   const { data, today, money, settings, period } = ctx;
   const [bucket, setBucket] = useState<PayableBucket | null>(null);
@@ -96,14 +107,14 @@ function Loaded({
     () =>
       cashFlowReport(
         {
-          receipts: cashInFromInvoices(invoices, sellerState),
+          receipts: cashInFromLedger(invoices, payments, sellerState),
           incomes,
           expenses,
           purchases,
         },
         period.range,
       ),
-    [invoices, incomes, expenses, purchases, sellerState, period.range],
+    [invoices, payments, incomes, expenses, purchases, sellerState, period.range],
   );
   const outlook = useMemo(
     () =>

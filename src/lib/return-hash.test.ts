@@ -50,6 +50,13 @@ describe("invoiceReturnHash", () => {
       invoiceReturnHash({ ...inv, customer: { ...inv.customer, gstin: "27AAPFU0939F1ZV" } }),
     ).not.toBe(h);
     expect(invoiceReturnHash({ ...inv, status: "cancelled" })).not.toBe(h);
+    // Recording an IRN changes no GSTR-1 value, so a filed period must not look edited.
+    expect(
+      invoiceReturnHash({
+        ...inv,
+        eInvoice: { ...inv.eInvoice, irn: "a".repeat(64), status: "generated" },
+      }),
+    ).toBe(h);
   });
 });
 
