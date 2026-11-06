@@ -1249,6 +1249,9 @@ export type Gstr2bDocType = (typeof GSTR2B_DOC_TYPES)[number];
 export const IMS_ACTIONS = ["none", "accepted", "rejected", "pending"] as const;
 export type ImsAction = (typeof IMS_ACTIONS)[number];
 export const GSTR2B_SOURCES = ["csv", "json", "manual"] as const;
+/** Portal section a row came from (b2b, b2ba, cdnr, cdnra, isd, impg). */
+export const GSTR2B_SECTIONS = ["b2b", "b2ba", "cdnr", "cdnra", "isd", "impg", "other"] as const;
+export type Gstr2bSection = (typeof GSTR2B_SECTIONS)[number];
 
 export const gstr2bRowSchema = z.object({
   id: z.string().min(1),
@@ -1257,6 +1260,10 @@ export const gstr2bRowSchema = z.object({
   docType: z.enum(GSTR2B_DOC_TYPES).default("invoice"),
   docNo: text(60),
   docDate: isoDate,
+  /** Added by feature E (defaults keep older rows valid). */
+  section: z.enum(GSTR2B_SECTIONS).default("b2b"),
+  /** For amendments (b2ba / cdnra): the number of the document being amended. */
+  origDocNo: text(60),
   pos: text(2),
   taxable: decimalText,
   igst: decimalText,
