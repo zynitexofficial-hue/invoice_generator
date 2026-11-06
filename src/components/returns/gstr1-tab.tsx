@@ -15,6 +15,7 @@ import { useId, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { saveSnapshot, upsertFiling } from "@/db/filings";
 import { downloadCsv } from "@/lib/csv";
+import { amendmentJson, type AmendmentSections } from "@/lib/gst/amendments";
 import {
   DRAFT_NOTE,
   gstr1Csv,
@@ -31,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Collapse } from "@/components/ui/collapse";
+import { SectionsPreview } from "./amendments/sections-preview";
 import {
   countIssues,
   excludedForPeriod,
@@ -494,6 +496,7 @@ export function Gstr1Tab({
   due,
   f,
   onPrint,
+  amendments,
 }: {
   result: Gstr1Result;
   invoices: Invoice[];
@@ -501,6 +504,8 @@ export function Gstr1Tab({
   due: string | null;
   f: Formatters;
   onPrint: (title: string, node: ReactNode) => void;
+  /** Amendments marked ready for this period (feature B); merged into the JSON. */
+  amendments?: AmendmentSections;
 }) {
   const labelOf = useRecordLabel(invoices);
   const rows = useMemo(() => {
@@ -515,7 +520,10 @@ export function Gstr1Tab({
     setBusy("json");
     try {
       const now = new Date().toISOString();
-      const json = gstr1JsonFile(result, { generatedAt: now });
+      const json = gstr1JsonFile(result, {
+        generatedAt: now,
+        extra: amendments && amendments.count > 0 ? amendmentJson(amendments) : undefined,
+      });
       downloadBlob(new Blob([json], { type: "application/json" }), `${gstr1FileBase(result)}.json`);
       await upsertFiling({
         periodKey: period,
@@ -600,6 +608,19 @@ export function Gstr1Tab({
           </p>
         )}
       </Card>
+
+      {amendments && amendments.count > 0 && (
+        <Card className="p-4 sm:p-5">
+          <h2 className="text-[15px] font-semibold">
+            Amendments included in this file ({amendments.count})
+          </h2>
+          <p className="mt-0.5 mb-3 text-[13px] text-muted-foreground">
+            Corrections to earlier periods you marked ready. They are added to the downloaded JSON
+            only; the totals below are for this period&apos;s own sales.
+          </p>
+          <SectionsPreview sections={amendments} f={f} period={period} />
+        </Card>
+      )}
 
       <SummaryTable rows={rows} result={result} f={f} />
       <NotIncluded result={result} f={f} />

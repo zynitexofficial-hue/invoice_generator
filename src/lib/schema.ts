@@ -1011,6 +1011,42 @@ export type AmendmentStatus = (typeof AMENDMENT_STATUSES)[number];
 
 export const AMENDMENT_SCHEMA_VERSION = 1;
 
+/** GSTR-1 table an amended document was originally reported in. */
+export const AMEND_SECTIONS = ["", "b2b", "b2cl", "b2cs", "exp", "cdnr", "cdnur"] as const;
+export type AmendSection = (typeof AMEND_SECTIONS)[number];
+
+const amountText = z.string().max(24).default("0.00");
+
+/** One rate row of an amended document (INR, 2 dp, decimal text). */
+export const amendItemSchema = z.object({
+  rate: z.string().max(8).default("0"),
+  taxable: amountText,
+  igst: amountText,
+  cgst: amountText,
+  sgst: amountText,
+  cess: amountText,
+});
+export type AmendItem = z.infer<typeof amendItemSchema>;
+
+/** A document as it appears (or appeared) in GSTR-1: the return-relevant values. */
+export const amendDocSchema = z.object({
+  number: text(60),
+  date: isoDate,
+  /** Receiver GSTIN (B2B/CDNR). */
+  ctin: text(15),
+  /** Place-of-supply state code ("96" = outside India). */
+  pos: text(2),
+  value: amountText,
+  interState: z.boolean().default(false),
+  reverseCharge: z.boolean().default(false),
+  invType: z.enum(["R", "SEWP", "SEWOP"]).default("R"),
+  noteType: z.enum(["", "C", "D"]).default(""),
+  exportType: z.enum(["", "WPAY", "WOPAY"]).default(""),
+  urType: z.enum(["", "B2CL", "EXPWP", "EXPWOP"]).default(""),
+  items: z.array(amendItemSchema).max(30).default([]),
+});
+export type AmendDoc = z.infer<typeof amendDocSchema>;
+
 export const amendmentSchema = z.object({
   id: z.string().min(1),
   schemaVersion: z.literal(AMENDMENT_SCHEMA_VERSION).default(AMENDMENT_SCHEMA_VERSION),
@@ -1024,6 +1060,13 @@ export const amendmentSchema = z.object({
   /** Open period in which the amendment is reported. */
   amendInPeriodKey: optionalPeriodKey,
   reason: text(300),
+  /** GSTR-1 table of the original document. */
+  section: z.enum(AMEND_SECTIONS).default(""),
+  /** The document as originally reported (entered/confirmed by the user) and as it stands now (null = cancelled). */
+  beforeDoc: amendDocSchema.nullable().default(null),
+  afterDoc: amendDocSchema.nullable().default(null),
+  /** True once the user confirmed that beforeDoc matches what was filed. */
+  beforeConfirmed: z.boolean().default(false),
   /** Return-relevant values (taxable, tax heads, place of supply…) before and after. */
   before: z.record(z.string().max(60), z.string().max(200)).default({}),
   after: z.record(z.string().max(60), z.string().max(200)).default({}),

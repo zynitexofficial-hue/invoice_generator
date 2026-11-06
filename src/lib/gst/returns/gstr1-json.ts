@@ -254,11 +254,13 @@ export interface Gstr1FileMeta {
    */
   withMeta?: boolean;
   pretty?: boolean;
+  /** Extra top-level sections merged in as-is (amendment tables, see lib/gst/amendments). */
+  extra?: Record<string, unknown>;
 }
 
 /** The JSON file contents as a string. */
 export function gstr1JsonFile(result: Gstr1Result, meta: Gstr1FileMeta): string {
-  const json = gstr1Json(result);
+  const json = { ...gstr1Json(result), ...(meta.extra ?? {}) };
   if (meta.withMeta)
     json._meta = {
       generator: "invoice-generator",
