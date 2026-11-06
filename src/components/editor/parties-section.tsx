@@ -23,7 +23,15 @@ import { checkGstin, normalizeGstin, stateFromGstin, PAN_PATTERN } from "@/lib/g
 import { stateLabel } from "@/lib/gst/states";
 import { customerStateCode, invoiceHasTax, isIndia, sellerStateCode } from "@/lib/gst/tax";
 import { toInvoiceCustomer } from "@/lib/invoice-factory";
+import {
+  DEFAULT_SIGNATURE_CAPTION,
+  defaultSignatureHeading,
+  signaturePartShown,
+  withSignaturePart,
+  type SignaturePart,
+} from "@/lib/render/view-model";
 import type { InvoiceCustomer, Seller } from "@/lib/schema";
+import { cn } from "@/lib/utils";
 import { fieldId } from "@/lib/validation";
 import { useEditor } from "@/stores/editor-store";
 import { Button } from "@/components/ui/button";
@@ -31,9 +39,11 @@ import { Combobox } from "@/components/ui/combobox";
 import { Collapse } from "@/components/ui/collapse";
 import { Field } from "@/components/ui/field";
 import { Input, Textarea } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Tooltip } from "@/components/ui/tooltip";
 import { StateSelect } from "@/components/forms/pickers";
 import { ImageUpload } from "@/components/forms/image-upload";
+import { InlineTextEdit } from "@/components/forms/inline-text-edit";
 import { useEditorContext, useFieldIssue } from "./editor-context";
 import { useEditorActions } from "./use-editor-actions";
 import { AddFieldLink, EditorSection, useRevealOn } from "./section";
@@ -53,6 +63,19 @@ export function SellerSection() {
   const [logoOpen, setLogoOpen] = useState(false);
   const [panOpen, setPanOpen] = useState(false);
   const [signatureOpen, setSignatureOpen] = useState(false);
+
+  // Each line of the signature block switches on and off for this document.
+  // Hiding never deletes the uploaded signature or custom text.
+  const show = useEditor((s) => s.invoice!.design.customization.show);
+  const patchDesign = useEditor((s) => s.patchDesign);
+  const headingShown = signaturePartShown(show, "signatureHeading");
+  const areaShown = signaturePartShown(show, "signatureArea");
+  const captionShown = signaturePartShown(show, "signatureCaption");
+  const signatureShown = headingShown || areaShown || captionShown;
+  const setPart = (part: SignaturePart, on: boolean) => {
+    const latest = useEditor.getState().invoice!.design.customization.show;
+    patchDesign({ show: withSignaturePart(latest, part, on) });
+  };
 
   useRevealOn([fieldId.sellerPan], () => setPanOpen(true));
 
@@ -217,13 +240,26 @@ export function SellerSection() {
 
           {/* Signature pill or link */}
           {seller.signature && !signatureOpen ? (
-            <div className="inline-flex h-7 items-center gap-1.5 rounded-full border border-border bg-surface-2/80 px-2 text-xs font-medium text-foreground">
+            <div
+              className={cn(
+                "inline-flex h-7 items-center gap-1.5 rounded-full border px-2 text-xs font-medium",
+                signatureShown
+                  ? "border-border bg-surface-2/80 text-foreground"
+                  : "border-dashed border-border-strong text-muted-foreground",
+              )}
+            >
               <img
                 src={seller.signature}
                 alt=""
-                className="size-4 rounded bg-white/60 object-contain"
+                className={cn(
+                  "size-4 rounded bg-white/60 object-contain",
+                  !signatureShown && "opacity-50",
+                )}
               />
-              <span>Signature{seller.signatoryName ? ` (${seller.signatoryName})` : ""}</span>
+              <span>
+                Signature{seller.signatoryName ? ` (${seller.signatoryName})` : ""}
+                {!signatureShown && " · hidden"}
+              </span>
               <button
                 type="button"
                 onClick={() => setSignatureOpen(true)}
@@ -242,7 +278,9 @@ export function SellerSection() {
               </button>
             </div>
           ) : !signatureOpen ? (
-            <AddFieldLink onClick={() => setSignatureOpen(true)}>Signature</AddFieldLink>
+            <AddFieldLink onClick={() => setSignatureOpen(true)}>
+              {signatureShown ? "Signature" : "Signature (hidden)"}
+            </AddFieldLink>
           ) : null}
         </div>
 
@@ -360,18 +398,71 @@ export function SellerSection() {
                 </Button>
               </div>
             </div>
-            <ImageUpload
-              label="Signature"
-              value={seller.signature}
-              onChange={(signature) => patchSeller({ signature })}
-              hint="Transparent PNG works best"
-            />
-            <Field label="Signatory name" optional hint="Printed under the signature line">
+            <p className="text-xs leading-5 text-muted-foreground">
+              Turn each line on or off for this document. Click a text to change it.
+            </p>
+
+            {/* One row per printed line, in the order they appear on the document. */}
+            <div className="divide-y divide-border rounded-lg border border-border bg-surface px-2.5">
+              <InlineTextEdit
+                label="Heading"
+                showLabel={false}
+                value={seller.signatureHeading}
+                fallback={defaultSignatureHeading(seller.name)}
+                onChange={(signatureHeading) => patchSeller({ signatureHeading })}
+                maxLength={160}
+                muted={!headingShown}
+                leading={
+                  <Switch
+                    size="sm"
+                    checked={headingShown}
+                    onCheckedChange={(on) => setPart("signatureHeading", on)}
+                    aria-label="Print the heading"
+                  />
+                }
+              />
+              <div className="flex min-h-9 items-center gap-2.5 py-1.5">
+                <Switch
+                  size="sm"
+                  checked={areaShown}
+                  onCheckedChange={(on) => setPart("signatureArea", on)}
+                  aria-label="Print the signature"
+                />
+                <div className={cn("min-w-0 flex-1", !areaShown && "opacity-50")}>
+                  <ImageUpload
+                    size="sm"
+                    label="Signature"
+                    value={seller.signature}
+                    onChange={(signature) => patchSeller({ signature })}
+                    hint={seller.signature ? "" : "or leave empty to sign by hand"}
+                  />
+                </div>
+              </div>
+              <InlineTextEdit
+                label="Caption"
+                showLabel={false}
+                value={seller.signatureCaption}
+                fallback={DEFAULT_SIGNATURE_CAPTION}
+                onChange={(signatureCaption) => patchSeller({ signatureCaption })}
+                maxLength={80}
+                muted={!captionShown}
+                leading={
+                  <Switch
+                    size="sm"
+                    checked={captionShown}
+                    onCheckedChange={(on) => setPart("signatureCaption", on)}
+                    aria-label="Print the caption"
+                  />
+                }
+              />
+            </div>
+
+            <Field label="Signatory name" optional hint="Printed above the caption">
               <Input
                 value={seller.signatoryName}
                 onChange={(e) => patchSeller({ signatoryName: e.target.value })}
                 maxLength={120}
-                placeholder="e.g. Authorized Signatory"
+                placeholder="e.g. Aarav Mehta"
               />
             </Field>
           </div>

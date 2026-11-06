@@ -21,6 +21,7 @@ import {
   type DateFormatId,
   type DesignCustomization,
   type Invoice,
+  type Visibility,
 } from "@/lib/schema";
 import { resolvePaymentQr } from "@/lib/payment-qr";
 
@@ -167,7 +168,14 @@ export interface DocViewModel {
   dueDate: string;
   dueLabel: string;
   meta: LabelValue[];
-  seller: PartyView & { logo: string; signature: string; signatoryName: string };
+  seller: PartyView & {
+    logo: string;
+    signature: string;
+    signatoryName: string;
+    /** Resolved signature heading and caption (defaults filled in). */
+    signatureHeading: string;
+    signatureCaption: string;
+  };
   customer: PartyView & { shipTo: string[] };
   hasCustomer: boolean;
   placeOfSupply: string;
@@ -230,6 +238,46 @@ function numberLabel(invoice: Invoice) {
     default:
       return "Invoice No.";
   }
+}
+
+/** Signature caption printed when the seller hasn't set their own. */
+export const DEFAULT_SIGNATURE_CAPTION = "Authorised signatory";
+
+/** Signature heading printed when the seller hasn't set their own. */
+export function defaultSignatureHeading(sellerName: string): string {
+  return `For ${sellerName.trim() || "your business"}`;
+}
+
+/** The signature block's lines, top to bottom; each can be shown or hidden. */
+export const SIGNATURE_PARTS = ["signatureHeading", "signatureArea", "signatureCaption"] as const;
+export type SignaturePart = (typeof SIGNATURE_PARTS)[number];
+
+/** Whether a part prints: the block is on and so is the part. */
+export function signaturePartShown(show: Visibility, part: SignaturePart): boolean {
+  return show.signature && show[part];
+}
+
+/**
+ * Visibility after turning one signature part on or off. The block switch
+ * follows the parts: off once none is left, on again when one comes back.
+ * With every part off, the parts reset to on, so turning the block back on
+ * (e.g. from the Design panel) shows a full block rather than an empty one.
+ */
+export function withSignaturePart(show: Visibility, part: SignaturePart, on: boolean): Visibility {
+  const parts = Object.fromEntries(
+    SIGNATURE_PARTS.map((p) => [p, p === part ? on : signaturePartShown(show, p)]),
+  ) as Record<SignaturePart, boolean>;
+  const any = SIGNATURE_PARTS.some((p) => parts[p]);
+  if (!any) {
+    return {
+      ...show,
+      signature: false,
+      signatureHeading: true,
+      signatureArea: true,
+      signatureCaption: true,
+    };
+  }
+  return { ...show, ...parts, signature: true };
 }
 
 export function isBlankLine(l: Invoice["lines"][number]) {
@@ -633,6 +681,8 @@ export function buildViewModel(
       logo: show.logo ? seller.logo : "",
       signature: seller.signature,
       signatoryName: seller.signatoryName.trim(),
+      signatureHeading: seller.signatureHeading.trim() || defaultSignatureHeading(seller.name),
+      signatureCaption: seller.signatureCaption.trim() || DEFAULT_SIGNATURE_CAPTION,
     },
     customer: {
       name: customer.name.trim(),

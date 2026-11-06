@@ -8,6 +8,9 @@ import {
   EXPORT_WITH_PAYMENT_DECLARATION,
   REVERSE_CHARGE_STATEMENT,
   SEZ_WITH_PAYMENT_DECLARATION,
+  SIGNATURE_PARTS,
+  signaturePartShown,
+  withSignaturePart,
 } from "./view-model";
 
 function vmOf(patch: Partial<Invoice>, show: Record<string, boolean> = {}) {
@@ -241,5 +244,63 @@ describe("preferred payment method", () => {
   it("ignores the preference when only one method exists", () => {
     const vm = vmFor({ bank, upiId: "", preferredPayment: "upi" });
     expect(vm.payment?.preferred).toBe("");
+  });
+});
+
+describe("signature block", () => {
+  const signature = "data:image/png;base64,iVBORw0KGgo=";
+  const seller = (s: Partial<Invoice["seller"]>) => {
+    const base = sampleInvoice(DEFAULT_SETTINGS, resolveDefaultDesign(DEFAULT_SETTINGS, []));
+    return { ...base.seller, name: "Mak Tech", signature, ...s };
+  };
+
+  it("defaults the heading and caption", () => {
+    const vm = vmOf({ seller: seller({ signatureHeading: "", signatureCaption: "" }) });
+    expect(vm.seller.signatureHeading).toBe("For Mak Tech");
+    expect(vm.seller.signatureCaption).toBe("Authorised signatory");
+    expect(vm.seller.signature).toBe(signature);
+  });
+
+  it("prints custom heading and caption text", () => {
+    const vm = vmOf({
+      seller: seller({
+        signatureHeading: " For Mak tech reference ",
+        signatureCaption: "Proprietor",
+      }),
+    });
+    expect(vm.seller.signatureHeading).toBe("For Mak tech reference");
+    expect(vm.seller.signatureCaption).toBe("Proprietor");
+  });
+});
+
+describe("signature parts", () => {
+  const base = DEFAULT_SETTINGS.design.fallback.customization.show;
+
+  it("hides one part and keeps the others", () => {
+    const show = withSignaturePart(base, "signatureHeading", false);
+    expect(show.signature).toBe(true);
+    expect(signaturePartShown(show, "signatureHeading")).toBe(false);
+    expect(signaturePartShown(show, "signatureArea")).toBe(true);
+    expect(signaturePartShown(show, "signatureCaption")).toBe(true);
+  });
+
+  it("turns the block off when the last part goes, and back on with a full block", () => {
+    let show = withSignaturePart(base, "signatureHeading", false);
+    show = withSignaturePart(show, "signatureArea", false);
+    show = withSignaturePart(show, "signatureCaption", false);
+    expect(show.signature).toBe(false);
+    expect(SIGNATURE_PARTS.some((p) => signaturePartShown(show, p))).toBe(false);
+    // Turning the whole block back on (Design panel) brings every part back.
+    const restored = { ...show, signature: true };
+    expect(SIGNATURE_PARTS.every((p) => signaturePartShown(restored, p))).toBe(true);
+  });
+
+  it("turning one part on while the block is off shows only that part", () => {
+    const off = { ...base, signature: false };
+    const show = withSignaturePart(off, "signatureCaption", true);
+    expect(show.signature).toBe(true);
+    expect(signaturePartShown(show, "signatureCaption")).toBe(true);
+    expect(signaturePartShown(show, "signatureHeading")).toBe(false);
+    expect(signaturePartShown(show, "signatureArea")).toBe(false);
   });
 });

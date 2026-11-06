@@ -16,6 +16,7 @@ export function ImageUpload({
   hint = "PNG, JPG, WebP or SVG · up to 2 MB",
   aspect = "wide",
   maxDimension,
+  size = "md",
 }: {
   value: string;
   onChange: (dataUrl: string) => void;
@@ -23,6 +24,8 @@ export function ImageUpload({
   hint?: string;
   aspect?: "wide" | "square";
   maxDimension?: number;
+  /** "sm": a small thumbnail with inline buttons and no label/hint text. */
+  size?: "md" | "sm";
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -42,7 +45,7 @@ export function ImageUpload({
   };
 
   return (
-    <div className="flex items-center gap-4">
+    <div className={cn("flex items-center", size === "sm" ? "gap-2.5" : "gap-4")}>
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -60,7 +63,7 @@ export function ImageUpload({
         className={cn(
           "group relative flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-border-strong bg-surface-2/60",
           "transition-[border-color,background-color] duration-150 hover:border-primary/60 hover:bg-primary-soft/50 focus-visible:focus-ring",
-          aspect === "wide" ? "h-20 w-36" : "size-20",
+          size === "sm" ? "h-9 w-20 rounded-lg" : aspect === "wide" ? "h-20 w-36" : "size-20",
           dragging && "border-primary bg-primary-soft",
           value &&
             "border-solid bg-[repeating-conic-gradient(var(--surface-3)_0%_25%,var(--surface)_0%_50%)] bg-[length:12px_12px]",
@@ -71,16 +74,21 @@ export function ImageUpload({
         ) : (
           <ImagePlus
             className={cn(
-              "size-6 text-muted-foreground transition-transform group-hover:scale-110",
+              size === "sm" ? "size-4" : "size-6",
+              "text-muted-foreground transition-transform group-hover:scale-110",
               busy && "animate-pulse",
             )}
           />
         )}
       </button>
       <div className="min-w-0 space-y-1.5">
-        <div className="text-sm font-medium">{label}</div>
-        <div className="text-xs text-muted-foreground">{hint}</div>
-        <div className="flex gap-1.5">
+        {size === "md" && (
+          <>
+            <div className="text-sm font-medium">{label}</div>
+            <div className="text-xs text-muted-foreground">{hint}</div>
+          </>
+        )}
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button
             size="xs"
             variant="secondary"
@@ -95,6 +103,9 @@ export function ImageUpload({
               <Trash />
               Remove
             </Button>
+          )}
+          {size === "sm" && hint && (
+            <span className="text-[11px] text-muted-foreground">{hint}</span>
           )}
         </div>
       </div>

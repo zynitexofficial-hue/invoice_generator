@@ -1,7 +1,13 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import type { ColumnKey, DocRow, DocViewModel } from "@/lib/render/view-model";
+import {
+  SIGNATURE_PARTS,
+  signaturePartShown,
+  type ColumnKey,
+  type DocRow,
+  type DocViewModel,
+} from "@/lib/render/view-model";
 import type { DesignCustomization, SectionId } from "@/lib/schema";
 import { payPageHref } from "@/lib/upi";
 import { useMounted } from "@/hooks/use-mounted";
@@ -696,8 +702,11 @@ export function TermsSection() {
 }
 
 export function SignatureSection({ boxed = false }: { boxed?: boolean }) {
-  const { vm } = useDoc();
+  const { vm, design } = useDoc();
   const s = vm.seller;
+  const heading = signaturePartShown(design.show, "signatureHeading");
+  const area = signaturePartShown(design.show, "signatureArea");
+  const caption = signaturePartShown(design.show, "signatureCaption");
   return (
     <div className="doc-section" style={{ display: "flex", justifyContent: "flex-end" }}>
       <div
@@ -713,25 +722,30 @@ export function SignatureSection({ boxed = false }: { boxed?: boolean }) {
             : {}),
         }}
       >
-        <div style={{ fontWeight: 600 }}>For {s.name || "your business"}</div>
-        <div
-          style={{
-            height: "3.8em",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-          }}
-        >
-          {s.signature ? (
-            <img className="doc-signature-img" src={s.signature} alt="" decoding="sync" />
-          ) : null}
-        </div>
-        <div style={{ borderTop: "1px solid var(--doc-border-strong)", paddingTop: "0.35em" }}>
-          {s.signatoryName && <div style={{ fontWeight: 600 }}>{s.signatoryName}</div>}
-          <div className="doc-muted" style={{ fontSize: "0.88em" }}>
-            Authorised signatory
+        {heading && <div style={{ fontWeight: 600 }}>{s.signatureHeading}</div>}
+        {area && (
+          <div
+            style={{
+              height: "3.8em",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              borderBottom: "1px solid var(--doc-border-strong)",
+            }}
+          >
+            {s.signature ? (
+              <img className="doc-signature-img" src={s.signature} alt="" decoding="sync" />
+            ) : null}
           </div>
-        </div>
+        )}
+        {caption && (
+          <div style={{ paddingTop: area ? "0.35em" : heading ? "0.2em" : 0 }}>
+            {s.signatoryName && <div style={{ fontWeight: 600 }}>{s.signatoryName}</div>}
+            <div className="doc-muted" style={{ fontSize: "0.88em" }}>
+              {s.signatureCaption}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -756,7 +770,7 @@ export function sectionHasContent(
     case "terms":
       return Boolean(vm.terms);
     case "signature":
-      return design.show.signature;
+      return SIGNATURE_PARTS.some((part) => signaturePartShown(design.show, part));
   }
 }
 

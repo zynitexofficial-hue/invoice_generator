@@ -184,6 +184,10 @@ export const sellerSchema = z.object({
   logo: imageDataUrl,
   signature: imageDataUrl,
   signatoryName: text(120),
+  /** Heading above the signature; blank prints "For {business name}". */
+  signatureHeading: text(160),
+  /** Caption under the signature line; blank prints "Authorised signatory". */
+  signatureCaption: text(80),
   bank: bankSchema.prefault({}),
   upiId: text(120),
   upiName: text(120),
@@ -279,7 +283,14 @@ export const visibilitySchema = z.object({
   upiQr: z.boolean().default(true),
   /** "Tap to pay via UPI" link under the QR — clickable in the PDF. */
   payLink: z.boolean().default(true),
+  /** The whole signature block. Its three parts switch on and off separately below. */
   signature: z.boolean().default(true),
+  /** "For {business}" heading above the signature. */
+  signatureHeading: z.boolean().default(true),
+  /** The uploaded signature image, or a blank line to sign by hand. */
+  signatureArea: z.boolean().default(true),
+  /** "Authorised signatory" caption (and signatory name) under the line. */
+  signatureCaption: z.boolean().default(true),
   statusStamp: z.boolean().default(true),
   /** Print GST state codes for the customer and place of supply ("West Bengal (Code 19)"). */
   stateCodes: z.boolean().default(true),

@@ -11,9 +11,11 @@ import {
 } from "@/lib/gst/gstin";
 import type { AppSettings, Seller } from "@/lib/schema";
 import { gstinStateMismatch } from "@/lib/gst/tax";
+import { DEFAULT_SIGNATURE_CAPTION, defaultSignatureHeading } from "@/lib/render/view-model";
 import { buildUpiUri } from "@/lib/upi";
 import { QrCodeSvg } from "@/components/document/qr-code";
 import { ImageUpload } from "@/components/forms/image-upload";
+import { InlineTextEdit } from "@/components/forms/inline-text-edit";
 import { StateSelect } from "@/components/forms/pickers";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
@@ -233,6 +235,22 @@ export function BusinessSection({ draft, update }: SectionProps) {
               maxLength={120}
             />
           </Field>
+          <div className="-my-2">
+            <InlineTextEdit
+              label="Heading"
+              value={p.signatureHeading}
+              fallback={defaultSignatureHeading(p.name)}
+              onChange={(signatureHeading) => set({ signatureHeading })}
+              maxLength={160}
+            />
+            <InlineTextEdit
+              label="Caption"
+              value={p.signatureCaption}
+              fallback={DEFAULT_SIGNATURE_CAPTION}
+              onChange={(signatureCaption) => set({ signatureCaption })}
+              maxLength={80}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>
