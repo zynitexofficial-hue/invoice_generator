@@ -78,14 +78,17 @@ export function yes(v: unknown): boolean {
 }
 
 /**
- * Invoice-number key for matching: uppercase, punctuation removed, leading
- * zeros of every digit run dropped ("INV/0012" and "inv-12" both → "INV12").
+ * Invoice-number key for matching: uppercase, leading zeros of every digit run
+ * dropped, then punctuation removed ("INV/0012" and "inv-12" both → "INV12";
+ * "INV/26-27/0012" and "INV/26-27/12" both → "INV262712").
  */
 export function normalizeDocNo(v: string): string {
+  // Trim zeros per digit run BEFORE dropping punctuation, otherwise
+  // "INV/26-27/0012" would fuse into one run and never equal "INV/26-27/12".
   return v
     .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .replace(/\d+/g, (run) => run.replace(/^0+(?=\d)/, ""));
+    .replace(/\d+/g, (run) => run.replace(/^0+(?=\d)/, ""))
+    .replace(/[^A-Z0-9]/g, "");
 }
 
 /** Last run of digits without leading zeros ("INV/26-27/0012" → "12"); "" if none. */

@@ -195,7 +195,7 @@ export function parseGstr2bJson(text: string): ParsedGstr2b {
   }
 
   for (const k of SECTION_KEYS)
-    if (docdata[k] !== undefined && !Array.isArray(docdata[k]))
+    if (docdata[k] !== undefined && docdata[k] !== null && !Array.isArray(docdata[k]))
       out.warnings.push(`Section ${k} was not in the expected list form and was skipped.`);
   const bad = out.rows.filter((r) => !r.docDate).length;
   if (bad) out.warnings.push(`${bad} row(s) have no readable date.`);

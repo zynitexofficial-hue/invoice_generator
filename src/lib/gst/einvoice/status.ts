@@ -151,7 +151,7 @@ export function withIrpEntry(inv: Invoice, entry: IrpEntry): Invoice {
     ackNo: entry.ackNo || inv.eInvoice.ackNo,
     ackDate: entry.ackDate || inv.eInvoice.ackDate,
     qr: entry.signedQr || inv.eInvoice.qr,
-    status: /cancel/i.test(entry.status) ? "cancelled" : "generated",
+    status: /cancel|^cnl$/i.test(entry.status) ? "cancelled" : "generated",
   };
   return { ...inv, eInvoice };
 }

@@ -23,8 +23,13 @@ import {
 /** RFC 4180 reader: quotes, escaped quotes, CRLF/LF, BOM; comma, semicolon or tab separated. */
 export function parseCsvText(text: string): string[][] {
   const src = text.replace(/^﻿/, "");
-  const firstLine = src.split(/\r?\n/, 1)[0] ?? "";
-  const counts: [string, number][] = [",", ";", "\t"].map((d) => [d, firstLine.split(d).length]);
+  // Portal sheets start with title lines that contain no delimiter, so judge
+  // the delimiter over the first lines, not just the first one.
+  const head = src.split(/\r?\n/, 15);
+  const counts: [string, number][] = [",", ";", "\t"].map((d) => [
+    d,
+    head.reduce((n, l) => n + l.split(d).length - 1, 0),
+  ]);
   const delim = counts.sort((a, b) => b[1] - a[1])[0][0];
   const rows: string[][] = [];
   let row: string[] = [];
@@ -115,8 +120,10 @@ function mapHeader(cells: string[]): Partial<Record<Field, number>> {
 
 function docTypeOf(raw: string, headerSaysNote: boolean): Gstr2bDocType {
   const s = raw.trim().toLowerCase();
-  if (/^(c|credit)/.test(s)) return "credit_note";
-  if (/^(d|debit)/.test(s)) return "debit_note";
+  // Whole words only: the B2B sheet's "Invoice type" holds values such as
+  // "Deemed exports" that must not be read as a debit note.
+  if (/^(c|cn|credit)(\s*note)?$/.test(s)) return "credit_note";
+  if (/^(d|dn|debit)(\s*note)?$/.test(s)) return "debit_note";
   if (headerSaysNote) return "credit_note";
   return "invoice";
 }

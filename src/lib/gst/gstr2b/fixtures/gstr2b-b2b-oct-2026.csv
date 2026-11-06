@@ -1,0 +1,8 @@
+﻿Goods and Services Tax - GSTR-2B,,,,,,,,,,,,,,,,,
+Taxpayer GSTIN: 27AAACR1234A1Z5,,,,,,,,,,,,,,,,,
+GSTIN of supplier,Trade/Legal name,Invoice details,,,,,Rate & value details,,Tax Amount,,,,GSTR-1/IFF/GSTR-5 Period,GSTR-1/IFF/GSTR-5 Filing Date,ITC Availability,Reason,Applicable % of Tax Rate
+GSTIN of supplier,Trade/Legal name,Invoice number,Invoice type,Invoice Date,Invoice Value(₹),Place of supply,Supply Attract Reverse Charge,Rate(%),Taxable Value (₹),Integrated Tax(₹),Central Tax(₹),State/UT Tax(₹),Cess(₹),GSTR-1/IFF/GSTR-5 Period,GSTR-1/IFF/GSTR-5 Filing Date,ITC Availability,Reason,Applicable % of Tax Rate
+27AABCU9603R1ZX,ULTRA STEEL TRADERS,INV/26-27/0012,Regular,05-10-2026,"11,800.00",27-Maharashtra,No,18,"10,000.00",0.00,900.00,900.00,0.00,Oct-26,11-11-2026,Yes,,100
+27AABCU9603R1ZX,ULTRA STEEL TRADERS,SI-77,Regular,09-10-2026,"5,900.00",29-Karnataka,No,18,"5,000.00",900.00,0.00,0.00,0.00,Oct-26,11-11-2026,No,POS,100
+29AAACG5678B1Z2,Gamma Logistics Pvt Ltd,DE-4,Deemed exports,14-10-2026,"1,180.00",27-Maharashtra,No,18,"1,000.00",180.00,0.00,0.00,0.00,Oct-26,13-11-2026,Yes,,100
+Total,,,,,"18,880.00",,,,"16,000.00",1080.00,1800.00,1800.00,0.00,,,,,

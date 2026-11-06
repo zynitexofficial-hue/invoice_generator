@@ -1,0 +1,188 @@
+{
+  "data": {
+    "gstin": "27AAACR1234A1Z5",
+    "rtnprd": "102026",
+    "version": "1.0",
+    "gendt": "14-11-2026",
+    "data": {
+      "docdata": {
+        "b2b": [
+          {
+            "ctin": "27AABCU9603R1ZX",
+            "trdnm": "ULTRA STEEL TRADERS",
+            "supfildt": "11-11-2026",
+            "supprd": "102026",
+            "inv": [
+              {
+                "inum": "INV/26-27/0012",
+                "typ": "R",
+                "dt": "05-10-2026",
+                "val": 11800.0,
+                "pos": "27",
+                "rev": "N",
+                "itcavl": "Y",
+                "diffprcnt": 1,
+                "txval": 10000.0,
+                "igst": 0,
+                "cgst": 900.0,
+                "sgst": 900.0,
+                "cess": 0,
+                "srctyp": "e-Invoice",
+                "irn": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+                "irngendate": "05-10-2026"
+              },
+              {
+                "inum": "SI-77",
+                "typ": "R",
+                "dt": "09-10-2026",
+                "val": "5900.00",
+                "pos": "29",
+                "rev": "N",
+                "itcavl": "N",
+                "rsn": "POS",
+                "txval": "5000.00",
+                "igst": "900.00",
+                "cgst": "0.00",
+                "sgst": "0.00",
+                "cess": "0.00"
+              }
+            ]
+          },
+          {
+            "ctin": "29AAACG5678B1Z2",
+            "trdnm": "Gamma Logistics Pvt Ltd",
+            "supfildt": "13-11-2026",
+            "supprd": "102026",
+            "inv": [
+              {
+                "inum": "GL-5",
+                "typ": "R",
+                "dt": "12-10-2026",
+                "val": 1180,
+                "pos": "27",
+                "rev": "Y",
+                "itcavl": "N",
+                "rsn": "C",
+                "txval": 1000,
+                "igst": 180,
+                "cgst": 0,
+                "sgst": 0,
+                "cess": 0
+              }
+            ]
+          }
+        ],
+        "b2ba": [
+          {
+            "ctin": "27AABCU9603R1ZX",
+            "trdnm": "ULTRA STEEL TRADERS",
+            "inv": [
+              {
+                "oinum": "OLD-1",
+                "oidt": "01-09-2026",
+                "inum": "NEW-1",
+                "typ": "R",
+                "dt": "15-10-2026",
+                "val": 590,
+                "pos": "27",
+                "rev": "N",
+                "itcavl": "Y",
+                "txval": 500,
+                "igst": 0,
+                "cgst": 45,
+                "sgst": 45,
+                "cess": 0
+              }
+            ]
+          }
+        ],
+        "cdnr": [
+          {
+            "ctin": "27AABCU9603R1ZX",
+            "trdnm": "ULTRA STEEL TRADERS",
+            "nt": [
+              {
+                "ntnum": "CN-3",
+                "typ": "C",
+                "suptyp": "R",
+                "dt": "20-10-2026",
+                "val": 1180,
+                "pos": "27",
+                "rev": "N",
+                "itcavl": "Y",
+                "txval": 1000,
+                "igst": 0,
+                "cgst": 90,
+                "sgst": 90,
+                "cess": 0
+              },
+              {
+                "ntnum": "DN-1",
+                "typ": "D",
+                "suptyp": "R",
+                "dt": "22-10-2026",
+                "val": 118,
+                "pos": "27",
+                "rev": "N",
+                "itcavl": "Y",
+                "txval": 100,
+                "igst": 0,
+                "cgst": 9,
+                "sgst": 9,
+                "cess": 0
+              }
+            ]
+          }
+        ],
+        "cdnra": [
+          {
+            "ctin": "27AABCU9603R1ZX",
+            "nt": [
+              {
+                "ontnum": "CN-3",
+                "ontdt": "20-10-2026",
+                "ntnum": "CN-3A",
+                "typ": "C",
+                "dt": "28-10-2026",
+                "txval": 900,
+                "cgst": 81,
+                "sgst": 81,
+                "itcavl": "Y"
+              }
+            ]
+          }
+        ],
+        "isd": [
+          {
+            "ctin": "29AAAAA0000A1Z5",
+            "trdnm": "Head Office",
+            "docnum": "ISD-9",
+            "isd_docty": "ISDINV",
+            "docdt": "25-10-2026",
+            "igst": 50,
+            "cgst": 0,
+            "sgst": 0,
+            "cess": 0,
+            "itcelg": "Y"
+          }
+        ],
+        "impg": [
+          {
+            "refdt": "02-11-2026",
+            "recdt": "03-10-2026",
+            "portcode": "INMUN1",
+            "boenum": 6543210,
+            "boedt": "02-10-2026",
+            "txval": 20000,
+            "igst": 3600,
+            "cess": 0,
+            "amdhsn": "N",
+            "isamd": "N"
+          }
+        ]
+      }
+    },
+    "itcsumm": { "itcavl": { "nonrevsup": { "igst": 4000 } } }
+  },
+  "chksum": "deadbeef"
+}
