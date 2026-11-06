@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/dates";
 import { articleLd, breadcrumbLd, faqLd, graph, howToLd } from "@/lib/seo";
 import { CONTENT_REVIEWED } from "@/lib/site";
+import { socialMeta } from "@/lib/social";
 
 export const dynamicParams = false;
 
@@ -26,13 +27,12 @@ export async function generateMetadata({ params }: PageProps<"/guides/[slug]">):
     description: guide.description,
     keywords: guide.keywords,
     alternates: { canonical: path },
-    openGraph: {
-      type: "article",
-      url: path,
+    ...socialMeta({
+      path,
       title: guide.metaTitle,
       description: guide.description,
-    },
-    twitter: { title: guide.metaTitle, description: guide.description },
+      type: "article",
+    }),
   };
 }
 

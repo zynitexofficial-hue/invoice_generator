@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { GstCalculator } from "@/components/marketing/gst-calculator";
 import { ProseLink, ToolPage } from "@/components/marketing/tool-page";
 import type { Faq } from "@/lib/seo";
+import { socialMeta } from "@/lib/social";
 
 const TITLE = "GST Calculator — Add or Remove GST, CGST/SGST/IGST Split";
 const DESCRIPTION =
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
     "CGST SGST calculator",
   ],
   alternates: { canonical: "/gst-calculator" },
-  openGraph: { url: "/gst-calculator", title: TITLE, description: DESCRIPTION },
+  ...socialMeta({ path: "/gst-calculator", title: TITLE, description: DESCRIPTION }),
 };
 
 const FAQS: Faq[] = [

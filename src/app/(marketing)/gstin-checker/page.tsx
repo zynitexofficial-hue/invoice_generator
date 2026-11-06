@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { GST_PORTAL_SEARCH, GstinChecker } from "@/components/marketing/gstin-checker";
 import { ProseLink, ToolPage } from "@/components/marketing/tool-page";
 import type { Faq } from "@/lib/seo";
+import { socialMeta } from "@/lib/social";
 
 const PATH = "/gstin-checker";
 const TITLE = "GSTIN Checker — Validate GST Number Format & Check Digit";
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
     "GSTIN format",
   ],
   alternates: { canonical: PATH },
-  openGraph: { url: PATH, title: TITLE, description: DESCRIPTION },
+  ...socialMeta({ path: PATH, title: TITLE, description: DESCRIPTION }),
 };
 
 const FAQS: Faq[] = [

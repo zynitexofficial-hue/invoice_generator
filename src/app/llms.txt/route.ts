@@ -21,6 +21,7 @@ ${SITE_NAME} is a free, browser-based GST invoice generator for Indian freelance
 - Documents: GST tax invoice, invoice without GST (for unregistered businesses), bill of supply, quotation / proforma invoice, export invoice (multi-currency, LUT declaration)
 - GST: automatic CGST + SGST/UTGST for intrastate and IGST for interstate supplies; optional single "GST" line
 - Invoice details: GSTIN, HSN/SAC codes, place of supply, line and invoice discounts, tax-inclusive prices, round-off, amount in words (lakh/crore)
+- Returns: GSTR-1 and GSTR-3B worksheets prepared from invoices and expenses, GSTR-2B import and reconciliation, e-invoice JSON export for the IRP. These are drafting aids; the app does not file returns or generate IRNs
 - Payments: UPI QR code with the balance due, bank details, payment status tracking
 - Design: 6 templates (Minimal, Professional, Modern, Corporate, Creative, Service) with logo, signature, colours and fonts
 - Output: PDF via the browser's print dialog (A4 or Letter), invoice files (.json), full backup and restore

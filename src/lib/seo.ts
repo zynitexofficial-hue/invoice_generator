@@ -53,6 +53,7 @@ export function applicationLd() {
       "Amount in words in the Indian numbering system (lakh, crore)",
       "UPI QR code for payments",
       "PDF download",
+      "GSTR-1 and GSTR-3B worksheets, GSTR-2B reconciliation and e-invoice JSON export (drafting aids, not filing)",
       "Saved customers, item catalogue and invoice history",
       "No sign-up, no login and no watermark; data stays in the browser",
     ],

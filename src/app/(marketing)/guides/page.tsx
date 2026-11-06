@@ -5,6 +5,7 @@ import { GUIDES } from "@/content/guides";
 import { JsonLd } from "@/components/marketing/json-ld";
 import { absoluteUrl } from "@/lib/site";
 import { breadcrumbLd, graph } from "@/lib/seo";
+import { socialMeta } from "@/lib/social";
 
 const TITLE = "GST Invoice Guides — Formats, Rules & Examples";
 const DESCRIPTION =
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: "/guides" },
-  openGraph: { url: "/guides", title: TITLE, description: DESCRIPTION },
+  ...socialMeta({ path: "/guides", title: TITLE, description: DESCRIPTION }),
 };
 
 export default function GuidesPage() {

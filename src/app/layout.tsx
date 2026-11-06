@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
+import { SITE_META_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
 import { fontVariables } from "./fonts";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -18,10 +18,11 @@ const verification: Metadata["verification"] = {
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: `${SITE_TAGLINE} — No Sign-up, No Watermark | ${SITE_NAME}`,
+    // ≤60 characters so the title isn't cut off in search results.
+    default: `${SITE_TAGLINE} — No Sign-up | ${SITE_NAME}`,
     template: `%s | ${SITE_NAME}`,
   },
-  description: SITE_DESCRIPTION,
+  description: SITE_META_DESCRIPTION,
   applicationName: SITE_NAME,
   keywords: [
     "free GST invoice generator",
@@ -50,14 +51,15 @@ export const metadata: Metadata = {
     type: "website",
     siteName: SITE_NAME,
     locale: "en_IN",
-    url: "/",
+    // No `url` here: it would be inherited by every page that doesn't set its own
+    // openGraph and wrongly point them at the home page. The home page sets it.
     title: `${SITE_TAGLINE} | ${SITE_NAME}`,
-    description: SITE_DESCRIPTION,
+    description: SITE_META_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
     title: `${SITE_TAGLINE} | ${SITE_NAME}`,
-    description: SITE_DESCRIPTION,
+    description: SITE_META_DESCRIPTION,
   },
   robots: {
     index: true,

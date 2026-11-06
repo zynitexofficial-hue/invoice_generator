@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AmountInWords } from "@/components/marketing/amount-in-words";
 import { ProseLink, ToolPage } from "@/components/marketing/tool-page";
 import type { Faq } from "@/lib/seo";
+import { socialMeta } from "@/lib/social";
 
 const PATH = "/amount-in-words";
 const TITLE = "Amount in Words Converter — Rupees in Lakh & Crore";
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
     "lakh crore in words",
   ],
   alternates: { canonical: PATH },
-  openGraph: { url: PATH, title: TITLE, description: DESCRIPTION },
+  ...socialMeta({ path: PATH, title: TITLE, description: DESCRIPTION }),
 };
 
 const FAQS: Faq[] = [

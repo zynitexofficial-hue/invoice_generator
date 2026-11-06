@@ -2,11 +2,17 @@ import type { Metadata } from "next";
 import { SITE_NAME } from "@/lib/site";
 import { formatDate } from "@/lib/dates";
 import { PRIVACY_CHANGES, PRIVACY_CONTACT_EMAIL, PRIVACY_REVIEWED } from "@/lib/legal";
+import { socialMeta } from "@/lib/social";
 
 export const metadata: Metadata = {
   title: "Privacy — Your Invoices Stay on Your Device",
   description: `${SITE_NAME} runs entirely in your browser. We don't collect, upload or store your business details, customers or invoices. Plain-language privacy notice, including India's DPDP Act.`,
   alternates: { canonical: "/privacy" },
+  ...socialMeta({
+    path: "/privacy",
+    title: "Privacy — Your Invoices Stay on Your Device",
+    description: `${SITE_NAME} runs entirely in your browser. We don't collect, upload or store your business details, customers or invoices.`,
+  }),
 };
 
 const date = (iso: string) => formatDate(iso, "dd MMM yyyy");

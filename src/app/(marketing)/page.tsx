@@ -48,11 +48,17 @@ import {
   websiteLd,
   type Faq,
 } from "@/lib/seo";
-import { SITE_NAME } from "@/lib/site";
+import { SITE_META_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 import { TEMPLATES } from "@/lib/templates-meta";
+import { socialMeta } from "@/lib/social";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
+  ...socialMeta({
+    path: "/",
+    title: `${SITE_TAGLINE} | ${SITE_NAME}`,
+    description: SITE_META_DESCRIPTION,
+  }),
 };
 
 const FAQS: Faq[] = [
@@ -66,7 +72,7 @@ const FAQS: Faq[] = [
   },
   {
     q: "Are the invoices GST compliant?",
-    a: "The tax invoice includes every field required by Rule 46 of the CGST Rules, 2017 — GSTIN, a 16-character invoice number, HSN/SAC codes, taxable value, CGST/SGST/UTGST or IGST, place of supply and signature — once you fill them in. It does not generate e-invoice IRNs, which only businesses above the notified turnover threshold need.",
+    a: "The tax invoice has a place for every field Rule 46 of the CGST Rules, 2017 requires — supplier and recipient details with GSTIN, a consecutive invoice number of up to 16 characters, date, HSN/SAC codes, taxable value, CGST/SGST/UTGST or IGST, place of supply, reverse-charge status and signature. You still have to enter the correct values. The app checks the format of GSTINs and flags missing details, but it is not tax or legal advice.",
   },
   {
     q: "Does it calculate CGST, SGST and IGST automatically?",
@@ -101,31 +107,48 @@ const FAQS: Faq[] = [
     a: "Yes. Choose Tax Invoice, Invoice (without GST) for businesses that aren't GST-registered, Bill of Supply, Quotation / Proforma Invoice or Export Invoice. Quotations convert into tax invoices in one click, and export invoices support USD, EUR and other currencies with the LUT declaration.",
   },
   {
+    q: "What is a GST invoice and what must it contain?",
+    a: "A GST tax invoice is the document a GST-registered supplier issues for a taxable supply of goods or services. Rule 46 requires the supplier's name, address and GSTIN; a unique consecutive invoice number (up to 16 characters) and date; the recipient's details; HSN/SAC code, description, quantity and value of each item; the taxable value after discount; the rate and amount of CGST, SGST/UTGST or IGST; the place of supply; whether tax is payable on reverse charge; and a signature. Our GST invoice format guide has the full checklist.",
+  },
+  {
+    q: "What is the difference between a tax invoice, a bill of supply and an invoice without GST?",
+    a: "A tax invoice is issued by a registered business that charges GST. A bill of supply is issued instead by composition dealers and for exempt supplies, because no GST can be charged. An invoice without GST is for freelancers and businesses that are not registered under GST. Invoice Studio supports all three, plus quotations / proforma invoices and export invoices.",
+  },
+  {
+    q: "Does it help with GSTR-1, GSTR-3B and e-invoicing?",
+    a: "Yes, as drafting aids. Inside the app, GST Returns prepares GSTR-1 and GSTR-3B worksheets from your invoices and expenses, reconciles an imported GSTR-2B against your purchases, and exports e-invoice JSON for upload to the IRP. It does not file returns or generate IRNs for you — check every figure against the GST portal before you file.",
+  },
+  {
     q: "Can my customers pay with UPI?",
     a: "Yes. Add your UPI ID and a scan-to-pay UPI QR code with the balance due is printed on your invoice.",
   },
 ];
 
+/** The three visible "How it works" steps — also used for the HowTo structured data so both match. */
 const STEPS = [
   {
-    name: "Add your business details",
-    text: "Enter your business name, address, GSTIN and logo once — they're reused on every invoice.",
+    name: "Add your business and customer",
+    text: "Type your business name, address and GSTIN once, then pick or add the customer. Their state sets CGST + SGST or IGST automatically, and everything is remembered for next time.",
+    img: "/marketing/step-customer.webp",
+    w: 797,
+    h: 1025,
+    alt: "Bill-to form with customer name, address, state and place of supply",
   },
   {
-    name: "Add the customer",
-    text: "Pick a saved customer or type new details. Their state sets CGST + SGST or IGST automatically.",
+    name: "Add items — totals add up live",
+    text: "Enter quantity, rate and GST rate for each item; HSN/SAC, units and discounts sit one tap away. Taxes, round-off and amount in words are calculated instantly.",
+    img: "/marketing/step-items.webp",
+    w: 797,
+    h: 1191,
+    alt: "Items with quantity, rate and GST rate, and an HSN code summary",
   },
   {
-    name: "Add items",
-    text: "Enter each product or service with HSN/SAC, quantity, rate, discount and GST rate. Totals update instantly.",
-  },
-  {
-    name: "Choose a template",
-    text: "Pick one of six templates and adjust colours, fonts and layout. The live preview shows the final invoice.",
-  },
-  {
-    name: "Download the PDF",
-    text: "Click Download PDF and save it — no watermark, ready to email, WhatsApp or print.",
+    name: "Pick a design, download the PDF",
+    text: "Choose one of six templates, add your colours and logo, and download a print-ready A4 PDF with no watermark.",
+    img: "/marketing/step-design.webp",
+    w: 797,
+    h: 1035,
+    alt: "Template picker showing six invoice designs",
   },
 ];
 
@@ -321,7 +344,7 @@ function Facts() {
       icon: <IndianRupee />,
       tone: "primary" as Tone,
       value: "₹0",
-      label: "Free forever — no plans, no trials",
+      label: "Price — no plans, no trials, no limits",
     },
     {
       icon: <UserX />,
@@ -453,7 +476,7 @@ function Bento() {
             <div className="flex flex-col items-center gap-3">
               <div className="rounded-2xl bg-white p-3 shadow-md ring-1 ring-black/5">
                 <QrCodeSvg
-                  value="upi://pay?pa=northwind@okhdfcbank&pn=Northwind%20Studio&am=123900.00&cu=INR"
+                  value="upi://pay?pa=yourname@example&pn=Your%20Business&am=123900.00&cu=INR"
                   className="size-32"
                 />
               </div>
@@ -532,6 +555,7 @@ function Bento() {
             "Logo, signature, bank & IFSC",
             "Paid, partial & overdue status",
             "Backup & restore",
+            "GSTR-1 & GSTR-3B worksheets, GSTR-2B reconciliation, e-invoice export",
             "Installable app",
           ].map((t, i) => (
             <li
@@ -552,35 +576,6 @@ function Bento() {
 /* ---------------- Workflow (dark band) ---------------- */
 
 function Workflow() {
-  const steps = [
-    {
-      n: "01",
-      title: "Add your business and customer",
-      text: "Type your details once. Pick the customer's state and the right GST is chosen automatically — and everything is remembered for next time.",
-      img: "/marketing/step-customer.webp",
-      w: 797,
-      h: 1025,
-      alt: "Bill-to form with customer name, address, state and place of supply",
-    },
-    {
-      n: "02",
-      title: "Add items — totals add up live",
-      text: "Quantity, rate and GST rate are all you need. HSN/SAC, units and discounts sit one tap away. Taxes, round-off and amount in words are calculated instantly.",
-      img: "/marketing/step-items.webp",
-      w: 797,
-      h: 1191,
-      alt: "Items with quantity, rate and GST rate, and an HSN code summary",
-    },
-    {
-      n: "03",
-      title: "Pick a design, download the PDF",
-      text: "Choose a template, add your colours and logo, and download a print-ready A4 PDF with no watermark.",
-      img: "/marketing/step-design.webp",
-      w: 797,
-      h: 1035,
-      alt: "Template picker showing six invoice designs",
-    },
-  ];
   return (
     <section
       id="how-it-works"
@@ -605,14 +600,14 @@ function Workflow() {
           text="Three steps from a blank page to a GST-ready PDF."
         />
         <ol className="mt-16 space-y-16 sm:space-y-24">
-          {steps.map((s, i) => (
-            <li key={s.n} className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+          {STEPS.map((s, i) => (
+            <li key={s.name} className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
               <div className={`reveal ${i % 2 === 1 ? "lg:order-2" : ""}`}>
                 <span className="bg-[linear-gradient(180deg,white,rgb(255_255_255/0.15))] bg-clip-text font-mono text-6xl font-semibold tracking-tight text-transparent">
-                  {s.n}
+                  {String(i + 1).padStart(2, "0")}
                 </span>
                 <h3 className="mt-4 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">
-                  {s.title}
+                  {s.name}
                 </h3>
                 <p className="mt-4 max-w-md text-lg leading-8 text-white/65">{s.text}</p>
               </div>
@@ -820,13 +815,13 @@ function Mobile() {
 
 function Compare() {
   const rows: [string, boolean, string][] = [
-    ["Sign-up or phone number required", false, "Often"],
-    ["Limit on number of invoices", false, "Sometimes"],
-    ["Watermark or tool branding on PDF", false, "Sometimes"],
-    ["Your invoices stored on their servers", false, "Often"],
-    ["Automatic CGST, SGST & IGST", true, "Usually"],
-    ["Quotation, bill of supply & export invoice", true, "Sometimes"],
-    ["UPI QR code on invoice", true, "Sometimes"],
+    ["Sign-up or phone number required", false, "Varies"],
+    ["Limit on number of invoices", false, "Varies"],
+    ["Watermark or tool branding on PDF", false, "Varies"],
+    ["Your invoices stored on their servers", false, "Varies"],
+    ["Automatic CGST, SGST & IGST", true, "Varies"],
+    ["Quotation, bill of supply & export invoice", true, "Varies"],
+    ["UPI QR code on invoice", true, "Varies"],
   ];
   return (
     <section id="compare" aria-labelledby="compare-title" className="scroll-mt-16 py-20 sm:py-28">
@@ -836,7 +831,7 @@ function Compare() {
             id="compare-title"
             label="Why Invoice Studio"
             title="A free invoice generator with no catch."
-            text="Many “free” invoice tools ask for your phone number, cap how many invoices you can make, or stamp their logo on your PDF. We don't."
+            text="Some “free” invoice tools ask for your phone number, cap how many invoices you can make, or stamp their logo on your PDF. We don't, and your invoices never reach a server."
           />
           <div className="mt-8 flex reveal flex-wrap gap-3">
             {["No sign-up", "No watermark", "No limits"].map((t) => (
@@ -867,7 +862,7 @@ function Compare() {
                   {SITE_NAME}
                 </th>
                 <th scope="col" className="px-3 py-4 text-center font-medium sm:px-5">
-                  Typical free tools
+                  Other free tools
                 </th>
               </tr>
             </thead>

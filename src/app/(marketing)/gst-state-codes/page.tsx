@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { StateCodeTable } from "@/components/marketing/state-code-table";
 import { ProseLink, ToolPage } from "@/components/marketing/tool-page";
 import type { Faq } from "@/lib/seo";
+import { socialMeta } from "@/lib/social";
 
 const PATH = "/gst-state-codes";
 const TITLE = "GST State Code List — All States & UTs (With UTGST)";
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
     "place of supply code",
   ],
   alternates: { canonical: PATH },
-  openGraph: { url: PATH, title: TITLE, description: DESCRIPTION },
+  ...socialMeta({ path: PATH, title: TITLE, description: DESCRIPTION }),
 };
 
 const FAQS: Faq[] = [
