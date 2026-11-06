@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useCustomers, useInvoices } from "@/db/hooks";
@@ -132,10 +133,15 @@ export function CustomersView() {
       title="Customers"
       description="Save customer details once and pick them on any invoice."
       actions={
-        <Button variant="primary" onClick={() => setEditing({ ...EMPTY })}>
-          <Plus />
-          Add customer
-        </Button>
+        <>
+          <Button variant="secondary" asChild>
+            <Link href="/import">Import CSV</Link>
+          </Button>
+          <Button variant="primary" onClick={() => setEditing({ ...EMPTY })}>
+            <Plus />
+            Add customer
+          </Button>
+        </>
       }
     >
       {customers.length === 0 ? (

@@ -14,6 +14,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Brand, BrandMark } from "./brand";
 import { NAV_ITEMS, isActive, type NavItem } from "./nav";
+import { useRecurringOnOpen } from "@/components/recurring/recurring-boot";
 import { QuickBar } from "./quick-bar";
 import { ThemeIconButton, ThemeSegmented } from "./theme-toggle";
 
@@ -21,6 +22,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isEditor = pathname === "/invoice";
   const [menuOpen, setMenuOpen] = useState(false);
+  useRecurringOnOpen();
   return (
     <div className="flex min-h-dvh">
       {/* The editor needs the width for form + preview, so the sidebar shrinks to an icon rail. */}
@@ -86,12 +88,7 @@ function Sidebar({ pathname, compact }: { pathname: string; compact: boolean }) 
         {settings?.security?.pinEnabled &&
           (compact ? (
             <Tooltip content="Lock panel">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Lock panel"
-                onClick={() => lock()}
-              >
+              <Button variant="ghost" size="icon" aria-label="Lock panel" onClick={() => lock()}>
                 <Lock className="size-4" />
               </Button>
             </Tooltip>

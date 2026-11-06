@@ -29,6 +29,7 @@ import { PrivacyNoticeCard } from "./privacy-notice-card";
 import { ProtectStorage } from "./protect-storage";
 import { AttachmentsCard } from "./attachments-card";
 import { PurchasesCard } from "./purchases-card";
+import { RecurringCard } from "./recurring-card";
 import { RetentionCard } from "./retention-card";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -255,6 +256,7 @@ export function DataSection() {
       {settings && <AutoBackupCard settings={settings} />}
       {settings && <AttachmentsCard settings={settings} />}
       {settings && <PurchasesCard settings={settings} />}
+      {settings && <RecurringCard settings={settings} />}
       {settings && <RetentionCard settings={settings} />}
       {settings && <PrivacyNoticeCard settings={settings} />}
 

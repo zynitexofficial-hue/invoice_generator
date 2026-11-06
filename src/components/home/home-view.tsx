@@ -1,5 +1,6 @@
 "use client";
 
+import { RecurringDueNotice } from "@/components/recurring/recurring-boot";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -124,6 +125,7 @@ export function HomeView() {
       }
       actions={<OpenInvoiceFileButton />}
     >
+      <RecurringDueNotice />
       <nav aria-label="Quick actions" className="-mt-2 mb-6 flex flex-wrap gap-2">
         <NewDocumentButton />
         <Button variant="secondary" asChild>
